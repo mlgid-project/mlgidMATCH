@@ -54,10 +54,10 @@ class Match:
             q_range = q_range_list[idx]
             full_data[meas]['peaks'] = peaks
             if candidates_list is None:
-                candidate_indices = np.arange(len(self.config.cif_class.pattern_3d.cif_list))
+                candidate_indices = np.arange(len(self.config.cif_class.cifs))
             else:
                 candidate_indices = \
-                    np.nonzero(np.isin(self.config.cif_class.pattern_3d.cif_list, candidates_list[idx]))[0]
+                    np.nonzero(np.isin(self.config.cif_class.cifs, candidates_list[idx]))[0]
 
             full_data[meas].update(
                 self._build_tree(
@@ -104,8 +104,12 @@ class Match:
                 continue
             mask[branch['_indices_real_matched']] = False
             new_peaks_indices = peaks_indices[mask]
-            branch.update(self._build_tree(peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind,
-                                           depth=depth + 1))
+            branch.update(
+                self._build_tree(
+                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind,
+                    depth=depth + 1
+                )
+            )
         return data_matched
 
     def match_cifs(self, peaks, q_range, candidate_ind):
@@ -194,13 +198,15 @@ if __name__ == "__main__":
 
     with open(
             './data/prepr_cifs.pickle',
-            'rb') as file:
+            'rb'
+    ) as file:
         cif_cl = pickle.load(file)
     match_class = Match(
         # model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',
         cif_class=cif_cl,
         peaks_type='segments',
-        device='cuda')
+        device='cuda'
+    )
 
     from pygidsim.experiment import ExpParameters
     from pygidsim.giwaxs_sim import GIWAXSFromCif
@@ -209,16 +215,20 @@ if __name__ == "__main__":
 
     path_to_cif_1 = '/data/romodin/gi_matching/dataset/experiment/perovskites/cifs/1_BA2PbI4_n1.cif'
     el_1 = GIWAXSFromCif(path_to_cif_1, params)
-    q_2d_1, intensity_1 = el_1.giwaxs.giwaxs_sim(orientation=np.array([5., 1., 2.]),
-                                                 move_fromMW=True)  # q_2d is array with shape (2, peaks number)
+    q_2d_1, intensity_1 = el_1.giwaxs.giwaxs_sim(
+        orientation=np.array([5., 1., 2.]),
+        move_fromMW=True
+    )  # q_2d is array with shape (2, peaks number)
     idx = np.argsort(intensity_1)[-15:]
     q_2d_real = q_2d_1[:, idx]
     intensity_real = intensity_1[idx]
 
     path_to_cif_2 = '/data/romodin/gi_matching/dataset/experiment/perovskites/cifs/581_BA2FAPb2I7_n2.cif'
     el_2 = GIWAXSFromCif(path_to_cif_2, params)
-    q_2d_2, intensity_2 = el_2.giwaxs.giwaxs_sim(orientation=np.array([1., 1., 2.]),
-                                                 move_fromMW=True)  # q_2d is array with shape (2, peaks number)
+    q_2d_2, intensity_2 = el_2.giwaxs.giwaxs_sim(
+        orientation=np.array([1., 1., 2.]),
+        move_fromMW=True
+    )  # q_2d is array with shape (2, peaks number)
     idx = np.argsort(intensity_2)[-15:]
     q_2d_real = np.concatenate((q_2d_real, q_2d_2[:, idx]), axis=1)
     intensity_real = np.concatenate((intensity_real, intensity_2[idx]), axis=0)
@@ -237,10 +247,14 @@ if __name__ == "__main__":
         for key_1 in data_matched['Own_Meas'][key_0].keys():
             if not key_1.isdigit():
                 continue
-            print('   ', data_matched['Own_Meas'][key_0][key_1]['cif'],
-                  data_matched['Own_Meas'][key_0][key_1]['orient'])
+            print(
+                '   ', data_matched['Own_Meas'][key_0][key_1]['cif'],
+                data_matched['Own_Meas'][key_0][key_1]['orient']
+            )
             for key_2 in data_matched['Own_Meas'][key_0][key_1].keys():
                 if not key_2.isdigit():
                     continue
-                print('   ', data_matched['Own_Meas'][key_0][key_1][key_2]['cif'],
-                      data_matched['Own_Meas'][key_0][key_1][key_2]['orient'])
+                print(
+                    '   ', data_matched['Own_Meas'][key_0][key_1][key_2]['cif'],
+                    data_matched['Own_Meas'][key_0][key_1][key_2]['orient']
+                )

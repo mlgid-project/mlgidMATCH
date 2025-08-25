@@ -51,7 +51,7 @@ class Match_Orient():
          metrics_sim_all, metrics_sim_150_all, metrics_real_add,) = data_matched
         data_matched = {
             str(key): {
-                'cif': self.config.cif_class.pattern_3d.cif_list[cif_indices_list[key]],
+                'cif': self.config.cif_class.cifs[cif_indices_list[key]],
                 'orient': orients[key].astype(int),
                 'probability': probs[cif_indices_list[key]],
                 # 'q_sim_matched': q_sim_matched_list[key],
@@ -229,11 +229,13 @@ class Match_Orient():
                     """ depth of the branch > 0"""
                     if q_sim_list is None:
                         # the pattern was not calculated in preprocessing
-                        q_sim, intens_sim = self.calculate_pattern(q_3d=sim_config.q_sim_3d,
-                                                                   rec=sim_config.rec,
-                                                                   intensity=sim_config.intens_sim_3d,
-                                                                   q_range=q_range,
-                                                                   orientation=or_opt)
+                        q_sim, intens_sim = self.calculate_pattern(
+                            q_3d=sim_config.q_sim_3d,
+                            rec=sim_config.rec,
+                            intensity=sim_config.intens_sim_3d,
+                            q_range=q_range,
+                            orientation=or_opt
+                        )
                     else:
                         idx_opt = np.where(np.all(orientations == or_opt, axis=1))[0].item()
                         q_sim, intens_sim = q_sim_list[idx_opt], intens_sim_list[idx_opt]
@@ -324,11 +326,13 @@ class Match_Orient():
         for idx, orientation in enumerate(orientations):
             if q_sim_list is None:
                 # patterns were not calculated in preprocessing
-                q_sim, intens_sim = self.calculate_pattern(q_3d=sim_config.q_sim_3d,
-                                                           rec=sim_config.rec,
-                                                           intensity=sim_config.intens_sim_3d,
-                                                           q_range=q_range,
-                                                           orientation=orientation)
+                q_sim, intens_sim = self.calculate_pattern(
+                    q_3d=sim_config.q_sim_3d,
+                    rec=sim_config.rec,
+                    intensity=sim_config.intens_sim_3d,
+                    q_range=q_range,
+                    orientation=orientation
+                )
             else:
                 q_sim = q_sim_list[idx]
                 intens_sim = intens_sim_list[idx]

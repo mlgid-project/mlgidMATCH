@@ -22,14 +22,12 @@ import warnings
 
 class Pattern3d(object):
     def __init__(self,
-                 cif_list: List[str],  # (str_num)
                  q_3d: List[np.ndarray],  # each array with shape (points_num, 3)
                  rec: np.ndarray,  # (str_num, 3, 3,)
                  intensities: List[np.ndarray],  # each array with shape (str_num, points_num),
                  lengths: List[int],  # (str_num)
                  orientations: List[np.ndarray],  # each array with shape (orient_num, 3),
                  ):
-        self.cif_list = cif_list
         self.q_3d = q_3d
         self.rec = rec
         self.intensities = intensities
@@ -107,7 +105,7 @@ class CifPattern(object):
                 try:
                     pym_structure = Structure.from_file(cif_path)
                     unique_orientations = surface.get_symmetrically_distinct_miller_indices(pym_structure, max_index=5)
-                except (ValueError, AttributeError):
+                except (ValueError, AttributeError, TypeError):
                     unique_orientations = get_unique_directions(max_index=5)
                 orientations.append(np.array(unique_orientations, dtype=np.float32))
             else:
@@ -115,13 +113,13 @@ class CifPattern(object):
         rec_list = np.stack(rec_list, axis=2, dtype=np.float32)  # (3, 3, str_num)
         rec_list = np.transpose(rec_list, (2, 0, 1))  # (str_num, 3, 3)
         pattern_3d = Pattern3d(
-            cif_list=cif_list,
             q_3d=q_list,
             rec=rec_list,
             intensities=intensities_list,
             lengths=lengths,
             orientations=orientations,
         )
+        self.cifs = cif_list
         print("Parsing finished\n")
         return pattern_3d
 
@@ -146,10 +144,10 @@ class CifPattern(object):
 
         q_range_max = np.sqrt(self.params.q_xy_max ** 2 + self.params.q_z_max ** 2)
         background = torch.empty(
-            len(self.pattern_3d.cif_list), len(matching_rows), top_peaks, 3,
+            len(self.cifs), len(matching_rows), top_peaks, 3,
         )  # 3 - q2d + intensity
         print("Create background")
-        for idx in range(len(self.pattern_3d.cif_list)):
+        for idx in range(len(self.cifs)):
             q_list = []
             int_list = []
             for row in matching_rows:
@@ -193,7 +191,7 @@ class CifPattern(object):
         full_intensity_1d = []
 
         print("Create all possible patterns")
-        for idx, cif in enumerate(self.pattern_3d.cif_list):
+        for idx, cif in enumerate(self.cifs):
             q_2d_list = []
             intensity_list = []
             for orientation in self.pattern_3d.orientations[idx]:
@@ -240,7 +238,7 @@ class CifPattern(object):
 
 
 if __name__ == '__main__':
-    folder_path = '/home/romodin/Romodos/Packages/mlgidMATCH/cifs/'
+    folder_path = '/home/romodin/Romodos/Packages/mlgidMATCH/mlgidmatch/data/cifs/'
     all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif', '576_PEA2PbI4_n1.cif',
                 '579_PEA2MAPb2I7_n2.cif', '581_BA2FAPb2I7_n2.cif', 'Bn-Br_test.cif', 'hex_2H_S41.cif',
                 'hex_4H_S41.cif', 'hex_6H_S41.cif']
@@ -255,4 +253,4 @@ if __name__ == '__main__':
 
     with open('./prepr_cifs.pickle', 'wb') as file:
         pickle.dump(cif_class, file)
-    print('FINALLY:', len(cif_class.pattern_3d.cif_list), 'structures')
+    print('FINALLY:', len(cif_class.cifs), 'structures')
