@@ -87,7 +87,7 @@ class CifPattern(object):
         print("Parse CIFs")
         for idx, cif_path in enumerate(self.cifs):
             if os.path.isfile(cif_path) and cif_path.lower().endswith('.cif'):
-                cif_list.append(cif_path.split('/')[-1])
+                cif_list.append(os.path.basename(cif_path))
                 el = GIWAXSFromCif(cif_path, self.params).giwaxs
                 intensity = Intensity(
                     el.crystal.atoms,
