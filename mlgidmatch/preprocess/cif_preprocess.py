@@ -14,7 +14,7 @@ import pymatgen.core.surface as surface
 
 from mlgidmatch.preprocess.rotate import rotate_vect
 from mlgidmatch.preprocess.directions import get_unique_directions
-from mlgidmatch.preprocess.utils import unique, limit_q, limit_int
+from mlgidmatch.preprocess.utils import unique, limit_q, limit_int, lorentz_correction_2d
 
 from typing import List
 import warnings
@@ -161,7 +161,8 @@ class CifPattern(object):
                     q_2d, self.pattern_3d.intensities[idx], (q_range_max, q_range_max),
                 )
                 q_2d, intensity = unique(q_2d, intensity)
-                q_2d, intensity = limit_int(q_2d, intensity, top_peaks=top_peaks)
+                intensity_corr = lorentz_correction_2d(q_2d, intensity)
+                q_2d, intensity = limit_int(q_2d, intensity_corr, top_peaks=top_peaks)
 
                 q_2d = torch.tensor(q_2d, dtype=torch.float32, device='cpu')
                 q_list.append(q_2d)

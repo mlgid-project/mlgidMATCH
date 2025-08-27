@@ -94,3 +94,17 @@ def unique(q_2d: np.ndarray,
     assert len(q_2d_unique) == len(int_unique), f"q_2d len: {len(q_2d_unique)}, intensity len: {len(int_unique)}"
 
     return q_2d_unique, int_unique
+
+
+def lorentz_correction_2d(q_2d: np.ndarray,  # (points_num, 2)
+                          intensities: np.ndarray,  # (points_num,)
+                          wavelength: float = 12_398 / 18_000,  # wavelength, Angstrom
+                          ):
+    k = 2 * np.pi / wavelength
+
+    condition_inME = (k - abs(q_2d[:, 0])) ** 2 > (k ** 2 - q_2d[:, 1] ** 2)  # condition if peaks are in Missing Edge
+    L = np.empty_like(intensities)
+    L[condition_inME] = 2 * k / np.linalg.norm(q_2d, axis=1)[condition_inME] ** 2
+    L[~condition_inME] = 1 / q_2d[:, 0][~condition_inME]
+
+    return L * intensities
