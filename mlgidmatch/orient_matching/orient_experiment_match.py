@@ -49,11 +49,13 @@ class Match_Orient():
          q_sim_matched_list, indices_real_matched_all, indices_real_matched,
          metrics_sim, metrics_sim_150, metrics_real,
          metrics_sim_all, metrics_sim_150_all, metrics_real_add,) = data_matched
+
+        answ_indices = np.nonzero(np.isin(candidate_ind, cif_indices_list))[0]
         data_matched = {
             str(key): {
                 'cif': self.config.cif_class.cifs[cif_indices_list[key]],
                 'orient': orients[key].astype(int),
-                'probability': probs[cif_indices_list[key]],
+                'probability': probs[answ_indices[key]],
                 # 'q_sim_matched': q_sim_matched_list[key],
                 # 'q_real_matched': q_real_matched_list[key],
                 'indices_real_matched_all': indices_real_matched_all[key],
@@ -183,13 +185,13 @@ class Match_Orient():
         """
 
         if q_real_all.ndim == 1:
+            q_sim_matched, indices_real_matched, metric_sim, metric_sim_150 = self.get_match_metrics(
+                q_real=q_real_all[peaks_indices],
+                q_sim=q_sim_list,
+                intensities_sim=intens_list_sim,
+                q_range=q_range,
+            )
             raise Exception
-            # q_sim_matched, indices_real_matched, metric_sim, metric_sim_150 = self.get_match_metrics(
-            #     q_real=q_real_all[peaks_indices],
-            #     q_sim=q_sim_list,
-            #     intensities_sim=intens_list_sim,
-            #     q_range=q_range,
-            # )
             # metric_real = self.calculate_real_metric(intens_real_all[peaks_indices], indices_real_matched)
             # if len(q_real_all) != len(peaks_indices):
             #     """ depth of the branch > 0"""
@@ -234,7 +236,7 @@ class Match_Orient():
                             rec=sim_config.rec,
                             intensity=sim_config.intens_sim_3d,
                             q_range=q_range,
-                            orientation=or_opt
+                            orientation=or_opt,
                         )
                     else:
                         idx_opt = np.where(np.all(orientations == or_opt, axis=1))[0].item()
@@ -331,7 +333,7 @@ class Match_Orient():
                     rec=sim_config.rec,
                     intensity=sim_config.intens_sim_3d,
                     q_range=q_range,
-                    orientation=orientation
+                    orientation=orientation,
                 )
             else:
                 q_sim = q_sim_list[idx]
