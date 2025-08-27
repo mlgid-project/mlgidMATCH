@@ -142,7 +142,7 @@ class CifPattern(object):
              ],
         )
 
-        q_range_max = np.sqrt(self.params.q_xy_max ** 2 + self.params.q_z_max ** 2)
+        # q_range_max = np.sqrt(self.params.q_xy_max ** 2 + self.params.q_z_max ** 2)
         background = torch.empty(
             len(self.cifs), len(matching_rows), top_peaks, 3,
         )  # 3 - q2d + intensity
@@ -154,15 +154,24 @@ class CifPattern(object):
                 R, orientation = rotate_vect(self.pattern_3d.rec[idx], orientation=row)
                 q_3d = self.pattern_3d.q_3d[idx] @ R
 
-                q_xy = np.linalg.norm(q_3d[:, :2], axis=1)
-                q_z = q_3d[:, -1]
-                q_2d = np.concatenate((q_xy[:, np.newaxis], q_z[:, np.newaxis]), axis=1)
-                q_2d, intensity = limit_q(
-                    q_2d, self.pattern_3d.intensities[idx], (q_range_max, q_range_max),
+                q_2d, intensity, _ = GIWAXS.giwaxs_2d(
+                    q_3d=q_3d,
+                    intensity=self.pattern_3d.intensities[idx],
+                    mi=None,
+                    q_range=(self.params.q_xy_max, self.params.q_z_max),
+                    wavelength=self.params.wavelength,
+                    move_fromMW=False,
                 )
-                q_2d, intensity = unique(q_2d, intensity)
-                intensity_corr = lorentz_correction_2d(q_2d, intensity)
-                q_2d, intensity = limit_int(q_2d, intensity_corr, top_peaks=top_peaks)
+
+                # q_xy = np.linalg.norm(q_3d[:, :2], axis=1)
+                # q_z = q_3d[:, -1]
+                # q_2d = np.concatenate((q_xy[:, np.newaxis], q_z[:, np.newaxis]), axis=1)
+                # q_2d, intensity = limit_q(
+                #     q_2d, self.pattern_3d.intensities[idx], (self.params.q_xy_max, self.params.q_z_max),
+                # )
+                # intensity_corr = lorentz_correction_2d(q_2d, intensity)
+                # q_2d, intensity = unique(q_2d, intensity_corr)
+                q_2d, intensity = limit_int(q_2d.T, intensity, top_peaks=top_peaks)
 
                 q_2d = torch.tensor(q_2d, dtype=torch.float32, device='cpu')
                 q_list.append(q_2d)
