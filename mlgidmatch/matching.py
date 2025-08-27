@@ -93,7 +93,7 @@ class Match:
             probs=probs,
             q_range=q_range,
             peaks_indices=peaks_indices,
-            candidate_ind=candidate_ind
+            candidate_ind=candidate_ind,
         )
         if not data_matched:
             return {}
@@ -107,8 +107,8 @@ class Match:
             branch.update(
                 self._build_tree(
                     peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind,
-                    depth=depth + 1
-                )
+                    depth=depth + 1,
+                ),
             )
         return data_matched
 
@@ -128,7 +128,7 @@ class Match:
             probs=probs,
             q_range=q_range,
             peaks_indices=peaks_indices,
-            candidate_ind=candidate_ind
+            candidate_ind=candidate_ind,
         )
 
     def unique_solutions(self, data_matched):
@@ -198,14 +198,14 @@ if __name__ == "__main__":
 
     with open(
             './data/prepr_cifs.pickle',
-            'rb'
+            'rb',
     ) as file:
         cif_cl = pickle.load(file)
     match_class = Match(
         # model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',
         cif_class=cif_cl,
         peaks_type='segments',
-        device='cuda'
+        device='cuda',
     )
 
     from pygidsim.experiment import ExpParameters
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     el_1 = GIWAXSFromCif(path_to_cif_1, params)
     q_2d_1, intensity_1 = el_1.giwaxs.giwaxs_sim(
         orientation=np.array([5., 1., 2.]),
-        move_fromMW=True
+        move_fromMW=True,
     )  # q_2d is array with shape (2, peaks number)
     idx = np.argsort(intensity_1)[-15:]
     q_2d_real = q_2d_1[:, idx]
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     el_2 = GIWAXSFromCif(path_to_cif_2, params)
     q_2d_2, intensity_2 = el_2.giwaxs.giwaxs_sim(
         orientation=np.array([1., 1., 2.]),
-        move_fromMW=True
+        move_fromMW=True,
     )  # q_2d is array with shape (2, peaks number)
     idx = np.argsort(intensity_2)[-15:]
     q_2d_real = np.concatenate((q_2d_real, q_2d_2[:, idx]), axis=1)
@@ -249,12 +249,12 @@ if __name__ == "__main__":
                 continue
             print(
                 '   ', data_matched['Own_Meas'][key_0][key_1]['cif'],
-                data_matched['Own_Meas'][key_0][key_1]['orient']
+                data_matched['Own_Meas'][key_0][key_1]['orient'],
             )
             for key_2 in data_matched['Own_Meas'][key_0][key_1].keys():
                 if not key_2.isdigit():
                     continue
                 print(
                     '   ', data_matched['Own_Meas'][key_0][key_1][key_2]['cif'],
-                    data_matched['Own_Meas'][key_0][key_1][key_2]['orient']
+                    data_matched['Own_Meas'][key_0][key_1][key_2]['orient'],
                 )
