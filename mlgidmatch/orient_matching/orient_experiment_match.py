@@ -1,13 +1,52 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from typing import List, Tuple, Union
-# from cif_matching.data.q_calculation.cif_preprocess import *
+from dataclasses import dataclass
 from scipy.optimize import linear_sum_assignment
 
 from pygidsim.giwaxs_sim import GIWAXS
 from mlgidmatch.cif_matching.utils import ExpConfig
 from mlgidmatch.orient_matching.utils import SimConfig
 from mlgidmatch.preprocess.rotate import rotate_vect
+
+
+@dataclass
+class DataForMatch:
+    """
+        Parameters
+        ----------
+            q_real_all : np.ndarray
+                full peak list in the experimental pattern, shape (peaks_real_num_all, ndim) - ndim=1 or 2
+            intens_real_all : np.ndarray
+                full peak intensities list in the experimental pattern, shape (peaks_real_num_all, )
+            peaks_indices : np.ndarray
+                indices of the subset according to the full peak list, shape (peaks_real_num, )
+            q_sim_list : Union[List[np.ndarray], np.ndarray, None]
+                list of the simulated peak arrays (own array for each orientation)
+                each array has shape (peaks_sim_num, 2)
+                OR just np.ndarray - peak list for powder3d pattern
+                if None (sim_list was not prepared in preprocessing) - calculate pattern manually
+            intens_sim_list : Union[List[np.ndarray], np.ndarray, None]
+                list of the simulated intensity arrays (own array for each orientation)
+                each array has shape (peaks_sim_num,)
+                OR just np.ndarray - intensities list for powder3d pattern
+                if None (sim_list was not prepared in preprocessing) - calculate pattern manually
+            sim_config : Union[SimConfig, None]
+                configuration with q_sim_3d, intens_sim_3d and rec to calculate sim_patterns manually
+            orientations : Union[np.ndarray, None]
+                all possible orientations for the structure, shape (orient_num, 3)
+                for powder3d pattern = None
+            q_range : Tuple[float, float]
+                Q value limits for xy and z axes
+    """
+    q_real_all: np.ndarray  # (peaks_num_all, ndim) - ndim=1 or 2 ,
+    intens_real_all: np.ndarray  # (peaks_num_all,)
+    peaks_indices: np.ndarray  # shape (peaks_real_num,)
+    q_sim_list: Union[List[np.ndarray], np.ndarray, None]
+    intens_sim_list: Union[List[np.ndarray], np.ndarray, None]
+    sim_config: Union[SimConfig, None]
+    orientations: Union[np.ndarray, None]
+    q_range: Tuple[float, float]
 
 
 class Match_Orient():
@@ -56,18 +95,8 @@ class Match_Orient():
                 'cif': self.config.cif_class.cifs[cif_indices_list[key]],
                 'orient': orients[key].astype(int),
                 'probability': probs[answ_indices[key]],
-                # 'q_sim_matched': q_sim_matched_list[key],
-                # 'q_real_matched': q_real_matched_list[key],
                 'indices_real_matched_all': indices_real_matched_all[key],
                 '_indices_real_matched': indices_real_matched[key],
-                # 'peaks_indices': peaks_indices[indices_real_matched[key]],
-                # 'peaks_indices_input': peaks_indices,
-                # 'metric_sim': metrics_sim[key],
-                # 'metric_sim_150': metrics_sim_150[key],
-                # 'metric_real': metrics_real[key],
-                # 'metric_sim_all': metrics_sim_all[key],
-                # 'metric_sim_150_all': metrics_sim_150_all[key],
-                # 'metric_real_add': metrics_real_add[key],
             }
             for key in range(len(cif_indices_list))
         }
@@ -80,35 +109,17 @@ class Match_Orient():
                       peaks_indices: np.ndarray,  # shape (peaks_real_num,)
                       q_range: Tuple[float, float],
                       ):
-        is_2d = (q_real_all.ndim == 2)
-        cfg = self.config.cif_class
-        need_sim_config = (is_2d and cfg.all_patterns_q2d is None) or (
-                (not is_2d) and cfg.all_patterns_q1d is None)
-
         data_matched = [
             self.test_one_cif(
-                q_real_all=q_real_all,
-                intens_real_all=intens_real_all,
-                peaks_indices=peaks_indices,
-                q_sim_list=(
-                    (cfg.all_patterns_q2d[idx] if cfg.all_patterns_q2d is not None else None)
-                    if is_2d else
-                    (cfg.all_patterns_q1d[idx] if cfg.all_patterns_q1d is not None else None)
+                self._prepare_input(
+                    idx,
+                    q_real_all,
+                    intens_real_all,
+                    peaks_indices,
+                    q_range,
                 ),
-                intens_sim_list=(
-                    (cfg.all_patterns_int2d[idx] if cfg.all_patterns_int2d is not None else None)
-                    if is_2d else
-                    (cfg.all_patterns_int1d[idx] if cfg.all_patterns_int1d is not None else None)
-                ),
-                sim_config=SimConfig(
-                    q_sim_3d=cfg.pattern_3d.q_3d[idx],
-                    intens_sim_3d=cfg.pattern_3d.intensities[idx],
-                    rec=cfg.pattern_3d.rec[idx],
-                ) if need_sim_config
-                else None,
-                orientations=self.config.cif_class.pattern_3d.orientations[idx],
-                q_range=q_range,
-            ) for idx in cif_indices_list
+            ) for idx in
+            cif_indices_list
         ]
 
         (orients,
@@ -125,7 +136,6 @@ class Match_Orient():
         )[0]
 
         q_sim_matched_list = [q_sim_matched_list[i] for i in mask]
-        # q_real_matched_list = [q_real_all[indices_real_matched_all[i]] for i in mask]
         indices_real_matched_all = [indices_real_matched_all[i] for i in mask]
         indices_real_matched = [indices_real_matched[i] for i in mask]
         orients = [orients[i] for i in mask]
@@ -143,143 +153,158 @@ class Match_Orient():
                         metrics_sim_all, metrics_sim_150_all, metrics_real_add,)
         return data_matched
 
+    def _prepare_input(self,
+                       idx: int,
+                       q_real_all: np.ndarray,  # (peaks_num_all, ndim) - ndim=1 or 2
+                       intens_real_all: np.ndarray,  # (peaks_num_all,)
+                       peaks_indices: np.ndarray,  # shape (peaks_real_num,)
+                       q_range: Tuple[float, float],
+                       ):
+        is_2d = (q_real_all.ndim == 2)
+        cfg = self.config.cif_class
+        need_sim_config = (is_2d and cfg.all_patterns_q2d is None) or (
+                (not is_2d) and cfg.all_patterns_q1d is None)
+        return DataForMatch(
+            q_real_all=q_real_all,
+            intens_real_all=intens_real_all,
+            peaks_indices=peaks_indices,
+            q_sim_list=(
+                (cfg.all_patterns_q2d[idx] if cfg.all_patterns_q2d is not None else None)
+                if is_2d else
+                (cfg.all_patterns_q1d[idx] if cfg.all_patterns_q1d is not None else None)
+            ),
+            intens_sim_list=(
+                (cfg.all_patterns_int2d[idx] if cfg.all_patterns_int2d is not None else None)
+                if is_2d else
+                (cfg.all_patterns_int1d[idx] if cfg.all_patterns_int1d is not None else None)
+            ),
+            sim_config=SimConfig(
+                q_sim_3d=cfg.pattern_3d.q_3d[idx],
+                intens_sim_3d=cfg.pattern_3d.intensities[idx],
+                rec=cfg.pattern_3d.rec[idx],
+            ) if need_sim_config else None,
+            orientations=self.config.cif_class.pattern_3d.orientations[idx],
+            q_range=q_range,
+        )
+
     def test_one_cif(self,
-                     q_real_all: np.ndarray,
-                     intens_real_all: np.ndarray,
-                     peaks_indices: np.ndarray,
-                     q_sim_list: Union[List[np.ndarray], np.ndarray, None],
-                     intens_sim_list: Union[List[np.ndarray], np.ndarray, None],
-                     sim_config: Union[SimConfig, None],
-                     orientations: Union[np.ndarray, None],
-                     q_range: Tuple[float, float],
-                     ):
-        """
-            Finds the best orientation of the structure that matches the experimental pattern,
-             returns orientation, matched peaks and metric values.
-            ...
-            Parameters
-            ----------
-                q_real_all : np.ndarray
-                    full peak list in the experimental pattern, shape (peaks_real_num_all, ndim) - ndim=1 or 2
-                intens_real_all : np.ndarray
-                    full peak intensities list in the experimental pattern, shape (peaks_real_num_all, )
-                peaks_indices : np.ndarray
-                    indices of the subset according to the full peak list, shape (peaks_real_num, )
-                q_sim_list : Union[List[np.ndarray], np.ndarray, None]
-                    list of the simulated peak arrays (own array for each orientation)
-                    each array has shape (peaks_sim_num, 2)
-                    OR just np.ndarray - peak list for powder3d pattern
-                    if None (sim_list was not prepared in preprocessing) - calculate pattern manually
-                intens_sim_list : Union[List[np.ndarray], np.ndarray, None]
-                    list of the simulated intensity arrays (own array for each orientation)
-                    each array has shape (peaks_sim_num,)
-                    OR just np.ndarray - intensities list for powder3d pattern
-                    if None (sim_list was not prepared in preprocessing) - calculate pattern manually
-                sim_config : Union[SimConfig, None]
-                    configuration with q_sim_3d, intens_sim_3d and rec to calculate sim_patterns manually
-                orientations : Union[np.ndarray, None]
-                    all possible orientation for the structure, shape (orient_num, 3)
-                    for powder3d pattern = None
-                q_range : Tuple[float, float]
-                    Q value limits for xy and z axes
-        """
-
-        if q_real_all.ndim == 1:
-            q_sim_matched, indices_real_matched, metric_sim, metric_sim_150 = self.get_match_metrics(
-                q_real=q_real_all[peaks_indices],
-                q_sim=q_sim_list,
-                intensities_sim=intens_list_sim,
-                q_range=q_range,
-            )
-            raise Exception
-            # metric_real = self.calculate_real_metric(intens_real_all[peaks_indices], indices_real_matched)
-            # if len(q_real_all) != len(peaks_indices):
-            #     """ depth of the branch > 0"""
-            #     q_sim_matched, indices_real_matched_all, metric_sim_all, metric_sim_150_all = self.get_match_metrics(
-            #         q_real=q_real_all,
-            #         q_sim=q_sim_list,
-            #         intensities_sim=intens_list_sim,
-            #         q_range=q_range,
-            #     )
-            #     metric_real_add = self.calculate_real_metric(intens_real_all, peaks_indices[indices_real_matched])
-            # else:
-            #     """ depth of the branch = 0"""
-            #     indices_real_matched_all = indices_real_matched
-            #     metric_sim_all = metric_sim
-            #     metric_sim_150_all = metric_sim_150
-            #     metric_real_add = metric_real
-            # orientation = np.array([0, 0, 0])
-
-        elif q_real_all.ndim == 2:
-            or_opt, q_sim_matched, indices_real_matched, metric_sim, metric_sim_150, metric_real = (
-                self.get_best_orientation(
-                    q_real=q_real_all[peaks_indices],
-                    intens_real=intens_real_all[peaks_indices],
-                    q_sim_list=q_sim_list,
-                    intens_sim_list=intens_sim_list,
-                    sim_config=sim_config,
-                    orientations=orientations,
-                    q_range=q_range,
-                )
-            )
-
-            if ((metric_sim >= 0.04) &
-                    (metric_sim_150 >= 0.05) &
-                    (metric_real >= 0.15) &
-                    (len(q_sim_matched) > 3)):
-                if len(q_real_all) != len(peaks_indices):
-                    """ depth of the branch > 0"""
-                    if q_sim_list is None:
-                        # the pattern was not calculated in preprocessing
-                        q_sim, intens_sim = self.calculate_pattern(
-                            q_3d=sim_config.q_sim_3d,
-                            rec=sim_config.rec,
-                            intensity=sim_config.intens_sim_3d,
-                            q_range=q_range,
-                            orientation=or_opt,
-                        )
-                    else:
-                        idx_opt = np.where(np.all(orientations == or_opt, axis=1))[0].item()
-                        q_sim, intens_sim = q_sim_list[idx_opt], intens_sim_list[idx_opt]
-                    q_sim_matched, indices_real_matched_all, metric_sim_all, metric_sim_150_all = self.get_match_metrics(
-                        q_real=q_real_all,
-                        q_sim=q_sim,
-                        intensities_sim=intens_sim,
-                        q_range=q_range,
-                    )
-                    metric_real_add = self.calculate_real_metric(intens_real_all, peaks_indices[indices_real_matched])
-                    sum_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all) + metric_real
-                    mult_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all) * metric_real
-                    max_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all, metric_real)
-                    if ((metric_sim_150_all < 0.08) or
-                            (metric_real_add < 0.1) or
-                            (max(metric_sim, metric_sim_all, metric_sim_150_all) + metric_real < 0.35) or
-                            (sum_metrics < 0.5 and (mult_metrics < 0.03 or max_metrics < 0.2))):
-                        metric_sim = -1
-                        metric_sim_150 = -1
-                        metric_real = -1
-                        metric_sim_all = -1
-                        metric_sim_150_all = -1
-                        metric_real_add = -1
-
-                else:
-                    """ depth of the branch == 0"""
-                    indices_real_matched_all = indices_real_matched
-                    metric_sim_all = metric_sim
-                    metric_real_add = metric_real
-                    metric_sim_150_all = metric_sim_150
-            else:
-                indices_real_matched_all = indices_real_matched
-                metric_sim = -1
-                metric_sim_150 = -1
-                metric_real = -1
-                metric_sim_all = -1
-                metric_sim_150_all = -1
-                metric_real_add = -1
-                or_opt = None
+                     in_data: DataForMatch, ):
+        ndim = in_data.q_real_all.ndim
+        if ndim == 1:
+            data_matched = self.test_rings(in_data)
+            pass
+        elif ndim == 2:
+            data_matched = self.test_segments(in_data)
+            pass
         else:
             raise ValueError("ndim should be 1 or 2")
+        return data_matched
 
+    def test_rings(self,
+                   in_data: DataForMatch,
+                   ):
+        q_sim_matched, indices_real_matched, metric_sim, metric_sim_150 = self.get_match_metrics(
+            q_real=in_data.q_real_all[in_data.peaks_indices],
+            q_sim=in_data.q_sim_list,
+            intensities_sim=in_data.intens_sim_list,
+            q_range=in_data.q_range,
+        )
+        metric_real = self.calculate_real_metric(in_data.intens_real_all[in_data.peaks_indices], indices_real_matched)
+        if len(in_data.q_real_all) != len(in_data.peaks_indices):
+            """ depth of the branch > 0"""
+            q_sim_matched, indices_real_matched_all, metric_sim_all, metric_sim_150_all = self.get_match_metrics(
+                q_real=in_data.q_real_all,
+                q_sim=in_data.q_sim_list,
+                intensities_sim=in_data.intens_sim_list,
+                q_range=in_data.q_range,
+            )
+            metric_real_add = self.calculate_real_metric(
+                in_data.intens_real_all, in_data.peaks_indices[indices_real_matched],
+            )
+        else:
+            """ depth of the branch = 0"""
+            indices_real_matched_all = indices_real_matched
+            metric_sim_all = metric_sim
+            metric_sim_150_all = metric_sim_150
+            metric_real_add = metric_real
+        orientation = np.array([0, 0, 0])
+
+        return (orientation,
+                q_sim_matched, indices_real_matched_all, indices_real_matched,
+                metric_sim, metric_sim_150, metric_real,
+                metric_sim_all, metric_sim_150_all, metric_real_add,)
+
+    def test_segments(self,
+                      in_data: DataForMatch,
+                      ):
+        or_opt, q_sim_matched, indices_real_matched, metric_sim, metric_sim_150, metric_real = (
+            self.get_best_orientation(
+                q_real=in_data.q_real_all[in_data.peaks_indices],
+                intens_real=in_data.intens_real_all[in_data.peaks_indices],
+                q_sim_list=in_data.q_sim_list,
+                intens_sim_list=in_data.intens_sim_list,
+                sim_config=in_data.sim_config,
+                orientations=in_data.orientations,
+                q_range=in_data.q_range,
+            )
+        )
+
+        if ((metric_sim >= 0.04) &
+                (metric_sim_150 >= 0.05) &
+                (metric_real >= 0.15) &
+                (len(q_sim_matched) > 3)):
+            if len(in_data.q_real_all) != len(in_data.peaks_indices):
+                """ depth of the branch > 0"""
+                if in_data.q_sim_list is None:
+                    # the pattern was not calculated in preprocessing
+                    q_sim, intens_sim = self.calculate_pattern(
+                        q_3d=in_data.sim_config.q_sim_3d,
+                        rec=in_data.sim_config.rec,
+                        intensity=in_data.sim_config.intens_sim_3d,
+                        q_range=in_data.q_range,
+                        orientation=or_opt,
+                    )
+                else:
+                    idx_opt = np.where(np.all(in_data.orientations == or_opt, axis=1))[0].item()
+                    q_sim, intens_sim = in_data.q_sim_list[idx_opt], in_data.intens_sim_list[idx_opt]
+                q_sim_matched, indices_real_matched_all, metric_sim_all, metric_sim_150_all = self.get_match_metrics(
+                    q_real=in_data.q_real_all,
+                    q_sim=q_sim,
+                    intensities_sim=intens_sim,
+                    q_range=in_data.q_range,
+                )
+                metric_real_add = self.calculate_real_metric(
+                    in_data.intens_real_all, in_data.peaks_indices[indices_real_matched],
+                )
+                sum_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all) + metric_real
+                mult_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all) * metric_real
+                max_metrics = max(metric_sim, metric_sim_all, metric_sim_150_all, metric_real)
+                if ((metric_sim_150_all < 0.08) or
+                        (metric_real_add < 0.1) or
+                        (max(metric_sim, metric_sim_all, metric_sim_150_all) + metric_real < 0.35) or
+                        (sum_metrics < 0.5 and (mult_metrics < 0.03 or max_metrics < 0.2))):
+                    metric_sim = -1
+                    metric_sim_150 = -1
+                    metric_real = -1
+                    metric_sim_all = -1
+                    metric_sim_150_all = -1
+                    metric_real_add = -1
+
+            else:
+                """ depth of the branch == 0"""
+                indices_real_matched_all = indices_real_matched
+                metric_sim_all = metric_sim
+                metric_real_add = metric_real
+                metric_sim_150_all = metric_sim_150
+        else:
+            indices_real_matched_all = indices_real_matched
+            metric_sim = -1
+            metric_sim_150 = -1
+            metric_real = -1
+            metric_sim_all = -1
+            metric_sim_150_all = -1
+            metric_real_add = -1
+            or_opt = None
         return (or_opt,
                 q_sim_matched, indices_real_matched_all, indices_real_matched,
                 metric_sim, metric_sim_150, metric_real,
