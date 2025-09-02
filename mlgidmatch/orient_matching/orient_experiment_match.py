@@ -71,8 +71,9 @@ class Match_Orient():
               q_range: Tuple[float, float],
               peaks_indices: np.ndarray,  # (peaks_num,)
               candidate_ind: np.ndarray,  # (candidates_num,)
+              threshold: float,
               ):
-        valid_indices = candidate_ind[np.where(probs >= 0.5)[0]]
+        valid_indices = candidate_ind[np.where(probs >= threshold)[0]]
         if len(valid_indices) == 0:
             return {}
 

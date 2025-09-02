@@ -45,6 +45,7 @@ class Match:
                   peak_list: List[np.ndarray],
                   intensities_real_list: List[np.ndarray],
                   q_range_list: List[Tuple[float, float]],
+                  threshold: float = 0.5,
                   candidates_list: Union[List[List[str]], None] = None,
                   ):
         full_data = {key: {} for key in measurements}
@@ -66,19 +67,20 @@ class Match:
                     q_range=q_range,
                     peaks_indices=np.arange(len(peaks)),
                     candidate_ind=candidate_indices,
+                    threshold=threshold,
                     depth=0,
                 ),
             )
         return full_data
 
-    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidate_ind, depth):
+    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidate_ind, threshold, depth):
         if depth >= 3:
             return {}
         if len(peaks_indices) <= 3:
             return {}
 
         probs = self.match_cifs(peaks_all[peaks_indices], q_range, candidate_ind)
-        if sum(probs >= 0.5) == 0:
+        if sum(probs >= threshold) == 0:
             return {}
 
         if self.peaks_type == 'rings':
@@ -94,6 +96,7 @@ class Match:
             q_range=q_range,
             peaks_indices=peaks_indices,
             candidate_ind=candidate_ind,
+            threshold=threshold,
         )
         if not data_matched:
             return {}
@@ -106,7 +109,7 @@ class Match:
             new_peaks_indices = peaks_indices[mask]
             branch.update(
                 self._build_tree(
-                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind,
+                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind, threshold,
                     depth=depth + 1,
                 ),
             )
@@ -121,7 +124,7 @@ class Match:
             device=self.device,
         )
 
-    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidate_ind):
+    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidate_ind, threshold):
         return self.orient_class.match(
             peaks_all=peaks_all,
             intens_real_all=intens_real_all,
@@ -129,6 +132,7 @@ class Match:
             q_range=q_range,
             peaks_indices=peaks_indices,
             candidate_ind=candidate_ind,
+            threshold=threshold,
         )
 
     def unique_solutions(self, data_matched):
@@ -163,33 +167,6 @@ class Match:
                 solutions.append(current)
 
         return solutions
-
-    # @staticmethod
-    # def make_hashable(solution):
-    #     """Convert solution in hashable set."""
-    #     return frozenset((cif, tuple(orientation)) for cif, orientation in solution)
-    #
-    # @staticmethod
-    # def unique_solutions(data_matched):
-    #     unique_sol = []
-    #
-    #     keys_0 = [key for key in data_matched['Own_Meas'].keys() if key.isdigit()]
-    #     for key_0 in keys_0:
-    #         keys_1 = [key for key in data_matched['Own_Meas'][key_0].keys() if key.isdigit()]
-    #         if len(keys_1) == 0:
-    #             unique_sol.append(
-    #                 (data_matched['Own_Meas'][key_0]['cif'] + '_' + str(data_matched['Own_Meas'][key_0]['orient']))
-    #         print(data_matched['Own_Meas'][key_0]['cif'], data_matched['Own_Meas'][key_0]['orient'])
-    #         for key_1 in data_matched['Own_Meas'][key_0].keys():
-    #             if not key_1.isdigit():
-    #                 continue
-    #             print('   ', data_matched['Own_Meas'][key_0][key_1]['cif'],
-    #                   data_matched['Own_Meas'][key_0][key_1]['orient'])
-    #             for key_2 in data_matched['Own_Meas'][key_0][key_1].keys():
-    #                 if not key_2.isdigit():
-    #                     continue
-    #                 print('   ', data_matched['Own_Meas'][key_0][key_1][key_2]['cif'],
-    #                       data_matched['Own_Meas'][key_0][key_1][key_2]['orient'])
 
 
 if __name__ == "__main__":
