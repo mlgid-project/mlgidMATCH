@@ -22,7 +22,6 @@ class Match:
     def __init__(self,
                  cif_class: CifPattern,
                  model_path: Union[str, None] = None,
-                 peaks_type='segments',  # or 'rings'
                  device='cuda'):
         if model_path is None:
             model_path = Path(__file__).parent / 'cif_matching' / 'models' / 'ResNet18_newimage_14ch_state99999.pt'
@@ -30,8 +29,8 @@ class Match:
         model.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True))
         model.eval().to(device)
 
+        self.peaks_type = None
         self.device = device
-        self.peaks_type = peaks_type
 
         self.config = ExpConfig(
             model=model,
@@ -47,7 +46,12 @@ class Match:
                   q_range_list: List[Tuple[float, float]],
                   threshold: float = 0.5,
                   candidates_list: Union[List[List[str]], None] = None,
+                  peaks_type: str = None,  # 'segments' or 'rings'
                   ):
+        self.peaks_type = peaks_type
+        if self.peaks_type is None:
+            raise ValueError('please specify peaks_type')
+
         full_data = {key: {} for key in measurements}
         for idx, meas in enumerate(measurements):
             peaks = peak_list[idx]
