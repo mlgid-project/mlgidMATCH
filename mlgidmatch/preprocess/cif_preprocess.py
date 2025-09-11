@@ -43,6 +43,8 @@ class CifPattern(object):
         ----------
             folder_path : str
                 folder with cifs
+            cifs : List[str]
+                paths to cifs
             params : ExpParameters
             pattern_3d : Pattern3d
                 class with all essential data for GID pattern simulation
@@ -56,9 +58,9 @@ class CifPattern(object):
     """
 
     def __init__(self, params, folder_path, cifs=None, create_all=False):
+        self.params = params
         self.folder_path = folder_path
         self.cifs = cifs
-        self.params = params
 
         self.pattern_3d = self.calculate_patterns3d()
         self.background = self.create_background()
@@ -124,7 +126,7 @@ class CifPattern(object):
         return pattern_3d
 
     def create_background(self, top_peaks=100):
-        """ Create 13 ideal patterns with 'elementary' orientations from matching_rows """
+        """Create 13 ideal patterns with 'elementary' orientations from matching_rows"""
         matching_rows = np.array(
             [[1, 0, 0],
              [0, 1, 0],
@@ -153,25 +155,25 @@ class CifPattern(object):
             for row in matching_rows:
                 R, orientation = rotate_vect(self.pattern_3d.rec[idx], orientation=row)
                 q_3d = self.pattern_3d.q_3d[idx] @ R
-
-                q_2d, intensity, _ = GIWAXS.giwaxs_2d(
-                    q_3d=q_3d,
-                    intensity=self.pattern_3d.intensities[idx],
-                    mi=None,
-                    q_range=(self.params.q_xy_max, self.params.q_z_max),
-                    wavelength=self.params.wavelength,
-                    move_fromMW=False,
-                )
-
-                # q_xy = np.linalg.norm(q_3d[:, :2], axis=1)
-                # q_z = q_3d[:, -1]
-                # q_2d = np.concatenate((q_xy[:, np.newaxis], q_z[:, np.newaxis]), axis=1)
-                # q_2d, intensity = limit_q(
-                #     q_2d, self.pattern_3d.intensities[idx], (self.params.q_xy_max, self.params.q_z_max),
+                #
+                # q_2d, intensity, _ = GIWAXS.giwaxs_2d(
+                #     q_3d=q_3d,
+                #     intensity=self.pattern_3d.intensities[idx],
+                #     mi=None,
+                #     q_range=(self.params.q_xy_max, self.params.q_z_max),
+                #     wavelength=self.params.wavelength,
+                #     move_fromMW=False,
                 # )
+
+                q_xy = np.linalg.norm(q_3d[:, :2], axis=1)
+                q_z = q_3d[:, -1]
+                q_2d = np.concatenate((q_xy[:, np.newaxis], q_z[:, np.newaxis]), axis=1)
+                q_2d, intensity = limit_q(
+                    q_2d, self.pattern_3d.intensities[idx], (self.params.q_xy_max, self.params.q_z_max),
+                )
                 # intensity_corr = lorentz_correction_2d(q_2d, intensity)
-                # q_2d, intensity = unique(q_2d, intensity_corr)
-                q_2d, intensity = limit_int(q_2d.T, intensity, top_peaks=top_peaks)
+                q_2d, intensity = unique(q_2d, intensity)
+                q_2d, intensity = limit_int(q_2d, intensity, top_peaks=top_peaks)
 
                 q_2d = torch.tensor(q_2d, dtype=torch.float32, device='cpu')
                 q_list.append(q_2d)
@@ -218,11 +220,11 @@ class CifPattern(object):
                 )
 
                 # remove peaks with very low intensities
-                max_points = 1000
+                max_peaks = 1000
                 intens_norm = (intensity / intensity.max())
                 sort_idx = np.where(intens_norm > 0.01)[0]
-                if len(sort_idx) < max_points:
-                    sort_idx = np.argsort(intensity)[::-1][:max_points]
+                if len(sort_idx) < max_peaks:
+                    sort_idx = np.argsort(intensity)[::-1][:max_peaks]
 
                 q_2d_list.append(q_2d.T[sort_idx])
                 intensity_list.append(intensity[sort_idx])
@@ -234,7 +236,7 @@ class CifPattern(object):
             full_q_1d.append(q_1d)
             full_intensity_1d.append(int_1d)
         print("All patterns created\n")
-        return full_q_2d, full_intensity_2d, full_q_1d, full_intensity_1d  # full_mi
+        return full_q_2d, full_intensity_2d, full_q_1d, full_intensity_1d
 
     def create_powder3d_pattern(self, idx):
         q_1d = np.linalg.norm(self.pattern_3d.q_3d[idx], axis=-1)

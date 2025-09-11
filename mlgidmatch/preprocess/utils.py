@@ -9,7 +9,7 @@ def limit_q(q_2d: np.ndarray,
             q_range: Tuple[float, float],
             ):
     """
-        Excludes peaks outside the q_range
+        Exclude peaks outside the q_range
 
         Parameters
         ----------
@@ -17,9 +17,8 @@ def limit_q(q_2d: np.ndarray,
                 peak positions in 2D q-space — q_xy, q_z
             intensity : np.ndarray, shape - (peaks_num,)
             q_range : Tuple[float, float], (q_xy and q_z max)
-            mi : np.ndarray, optional
 
-        Returns
+        Return
         -------
             limited_q :  np.ndarray, shape - (peaks_num, 2)
                 peak positions in 2d q-space — q_xy, q_z
@@ -45,17 +44,17 @@ def limit_int(q_2d: np.ndarray,  # (peaks_num, 2)
               top_peaks: int,
               ):
     """
-        Returns peaks with top intensities
+        Return peaks with top intensities
 
         Parameters
         ----------
-            q_2d : np.ndarray, shape (points_num, 2)
+            q_2d : np.ndarray, shape (peaks_num, 2)
                 peak positions in 2d q-space — q_xy, q_z
             intensity : np.ndarray, shape - (peaks_num,)
             top_peaks : int
                 how many brightest peaks to take
 
-        Returns
+        Return
         -------
             limited_q :  np.ndarray, shape (peaks_num, 2)
                 peak positions in 2d q-space — q_xy, q_z
@@ -73,7 +72,7 @@ def unique(q_2d: np.ndarray,
            intensity: np.ndarray,
            ):
     """
-        Returns only unique peak positions
+        Return only unique peak positions
 
         Parameters
         ----------
@@ -81,7 +80,7 @@ def unique(q_2d: np.ndarray,
                 peak positions in 2d q-space — q_xy, q_z
             intensity : np.ndarray, shape (peaks_num,)
 
-        Returns
+        Return
         -------
             q_2d_unique : np.ndarray, shape (peaks_num, 2)
                 peak positions in 2d q-space — q_xy, q_z
@@ -96,8 +95,8 @@ def unique(q_2d: np.ndarray,
     return q_2d_unique, int_unique
 
 
-def lorentz_correction_2d(q_2d: np.ndarray,  # (points_num, 2)
-                          intensities: np.ndarray,  # (points_num,)
+def lorentz_correction_2d(q_2d: np.ndarray,  # (peaks_num, 2)
+                          intensities: np.ndarray,  # (peaks_num,)
                           wavelength: float = 12_398 / 18_000,  # wavelength, Angstrom
                           ):
     k = 2 * np.pi / wavelength

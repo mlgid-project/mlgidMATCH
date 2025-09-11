@@ -19,7 +19,7 @@ def rotate_vect(rec,
         baz : np.ndarray, optional
             basis vector for the default orientation, default=001
 
-    Returns
+    Return
     -------
         R : np.ndarray, shape (3, 3)
             rotation matrix
