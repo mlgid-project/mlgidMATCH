@@ -62,13 +62,13 @@ def test_patterns(
                     except:
                         is_ring = f[entry]['data']['analysis'][meas]['fitted_peaks']['is_ring'][()]
                         if peaks_type == 'segments':
-                            xy_fitted = xy_fitted[np.where(is_ring == 0)]
-                            z_fitted = z_fitted[np.where(is_ring == 0)]
-                            intens_real = intens_real[np.where(is_ring == 0)]
+                            xy_fitted = xy_fitted[~is_ring]
+                            z_fitted = z_fitted[~is_ring]
+                            intens_real = intens_real[~is_ring]
                         elif peaks_type == 'rings':
-                            xy_fitted = xy_fitted[np.where(is_ring == 1)]
-                            z_fitted = z_fitted[np.where(is_ring == 1)]
-                            intens_real = intens_real[np.where(is_ring == 1)]
+                            xy_fitted = xy_fitted[is_ring]
+                            z_fitted = z_fitted[is_ring]
+                            intens_real = intens_real[is_ring]
 
                     q_2d_real = np.stack((xy_fitted, z_fitted)).T
                     peak_list.append(q_2d_real)
