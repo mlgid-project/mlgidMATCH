@@ -72,6 +72,7 @@ class Match_Orient():
               peaks_indices: np.ndarray,  # (peaks_num,)
               candidate_ind: np.ndarray,  # (candidates_num,)
               threshold: float,
+              save_metrics: bool,
               ):
         valid_indices = candidate_ind[np.where(probs >= threshold)[0]]
         if len(valid_indices) == 0:
@@ -86,22 +87,33 @@ class Match_Orient():
         )
 
         (cif_indices_list, orients,
-         q_sim_matched_list, indices_real_matched_all, indices_real_matched,
+         _q_sim_matched_list_, indices_real_matched_all, indices_real_matched,
          metrics_sim, metrics_sim_150, metrics_real,
          metrics_sim_all, metrics_sim_150_all, metrics_real_add,) = data_matched
 
         answ_indices = np.nonzero(np.isin(candidate_ind, cif_indices_list))[0]
-        data_matched = {
-            str(key): {
+        data_matched_dict = {}
+        for key in range(len(cif_indices_list)):
+            entry = {
                 'cif': self.config.cif_class.cifs[cif_indices_list[key]],
                 'orient': orients[key].astype(int),
                 'probability': probs[answ_indices[key]],
                 'indices_real_matched_all': indices_real_matched_all[key],
-                '_indices_real_matched': indices_real_matched[key],
+                'indices_real_matched': peaks_indices[indices_real_matched[key]],
             }
-            for key in range(len(cif_indices_list))
-        }
-        return data_matched
+            if save_metrics:
+                entry.update(
+                    {
+                        'metric_sim': metrics_sim[key],
+                        'metric_sim_150': metrics_sim_150[key],
+                        'metric_real': metrics_real[key],
+                        'metric_sim_all': metrics_sim_all[key],
+                        'metric_sim_150_all': metrics_sim_150_all[key],
+                        'metric_real_add': metrics_real_add[key],
+                    },
+                )
+            data_matched_dict[str(key)] = entry
+        return data_matched_dict
 
     def test_sev_cifs(self,
                       cif_indices_list: np.ndarray,  # indices of cifs to test

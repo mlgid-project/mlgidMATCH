@@ -47,6 +47,7 @@ class Match:
                   threshold: float = 0.5,
                   candidates_list: Union[List[List[str]], None] = None,
                   peaks_type: str = None,  # 'segments' or 'rings'
+                  save_metrics: bool = False,
                   ):
         self.peaks_type = peaks_type
         if self.peaks_type is None:
@@ -80,12 +81,14 @@ class Match:
                     peaks_indices=np.arange(len(peaks)),
                     candidate_ind=candidate_indices,
                     threshold=threshold,
+                    save_metrics=save_metrics,
                     depth=0,
                 ),
             )
         return full_data
 
-    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidate_ind, threshold, depth):
+    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidate_ind, threshold, save_metrics,
+                    depth):
         if depth >= 3:
             return {}
         if len(peaks_indices) <= 3:
@@ -109,19 +112,27 @@ class Match:
             peaks_indices=peaks_indices,
             candidate_ind=candidate_ind,
             threshold=threshold,
+            save_metrics=save_metrics,
         )
         if not data_matched:
             return {}
 
         for key, branch in data_matched.items():
-            mask = np.ones(len(peaks_indices), dtype=bool)
-            if len(branch['_indices_real_matched']) == 0:
+            if len(branch['indices_real_matched']) == 0:
                 continue
-            mask[branch['_indices_real_matched']] = False
-            new_peaks_indices = peaks_indices[mask]
+            # mask = np.ones(len(peaks_indices), dtype=bool)
+            # mask[branch['_indices_real_matched']] = False
+            # new_peaks_indices = peaks_indices[mask]
+
+            mask = np.zeros(len(peaks_all), dtype=bool)
+            mask[peaks_indices] = True
+            mask[branch['indices_real_matched']] = False
+            new_peaks_indices = np.arange(len(peaks_all))[mask]
+            # if not (new_peaks_indices_check == new_peaks_indices).all():
+            #     raise Exception
             branch.update(
                 self._build_tree(
-                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind, threshold,
+                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind, threshold, save_metrics,
                     depth=depth + 1,
                 ),
             )
@@ -136,7 +147,8 @@ class Match:
             device=self.device,
         )
 
-    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidate_ind, threshold):
+    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidate_ind, threshold,
+                    save_metrics, ):
         return self.orient_class.match(
             peaks_all=peaks_all,
             intens_real_all=intens_real_all,
@@ -145,6 +157,7 @@ class Match:
             peaks_indices=peaks_indices,
             candidate_ind=candidate_ind,
             threshold=threshold,
+            save_metrics=save_metrics,
         )
 
     def unique_solutions(self, data_matched):
