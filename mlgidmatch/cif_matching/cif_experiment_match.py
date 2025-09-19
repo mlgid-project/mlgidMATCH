@@ -22,7 +22,7 @@ class Match_CIF():
         self.config = config
 
     def match(self,
-              peak_list: np.ndarray,  # (points_num, 2)
+              peak_list: np.ndarray,  # (peaks_num, 2)
               q_range: Tuple[float, float],
               candidate_ind: np.ndarray,
               batch_size: int = 128,

@@ -52,6 +52,14 @@ class Match:
         if self.peaks_type is None:
             raise ValueError('please specify peaks_type')
 
+        assert len(measurements) == len(peak_list) == len(intensities_real_list) == len(
+            q_range_list,
+        ), f"lengths are not equal: {len(measurements)}, {len(peak_list)}, {len(intensities_real_list)}, {len(q_range_list)}"
+        if candidates_list is not None:
+            assert len(measurements) == len(
+                candidates_list,
+            ), f"lengths are not equal: {len(measurements)}, {len(candidates_list)}"
+
         full_data = {key: {} for key in measurements}
         for idx, meas in enumerate(measurements):
             peaks = peak_list[idx]
