@@ -8,7 +8,7 @@ from mlgidmatch.preprocess.cif_preprocess import CifPattern
 
 @dataclass
 class ExpConfig:
-    cif_class: CifPattern
+    cif_prepr: CifPattern
     model: Any = None
     settings_dict: dict = field(
         default_factory=lambda: {
@@ -22,18 +22,37 @@ def generate_images(
         q_range: torch.Tensor,  # (str_num, 2)
         intensities: Union[torch.Tensor, None],  # (str_num, peaks_num)
         settings_dict: dict,
-):
+) -> torch.Tensor:
+    """
+    Generate 'pseudo-experimental' images.
+
+    Parameters
+    ----------
+    q_2d : torch.Tensor
+        Shape (str_num, peaks_num, 2). Tensor with peaks (q_xy, q_z).
+        Preferably on CUDA.
+    q_range : torch.Tensor
+        Shape (str_num, 2). Upper limits of q-range (for q_xy, q_z).
+    intensities : torch.Tensor or None
+        Shape (str_num, peaks_num). Intensities corresponding to q_2d peaks.
+    settings_dict : dict
+        Dictionary of settings for the image generation.
+
+    Returns
+    -------
+    images : torch.Tensor
+        Probabilities for the candidate structures.
+    """
+
     image_size = settings_dict.get('image_size', 224)
 
     if intensities is not None:
         nonzero_mask = (intensities != 0)
-        # intensities = torch.where(nonzero_mask, torch.log(intensities), torch.tensor(0.0))
         intensities = torch.where(
             nonzero_mask,
             (intensities / intensities.max(axis=1, keepdims=True).values) ** (1 / 3),
             torch.tensor(0.0),
         )
-        # intensities = torch.where(nonzero_mask, intensities, torch.tensor(0.0))
     else:
         nonzero_mask = (q_2d != -1)
         nonzero_mask = nonzero_mask.any(axis=2)

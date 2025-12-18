@@ -9,8 +9,7 @@ from pymatgen.core import SymmOp
 
 
 def get_unique_directions(max_index: int) -> np.ndarray:
-    """ Generate possible crystallographic orientations """
-
+    """Generate possible crystallographic orientations within max_index."""
     mi_list = _get_all_directions(max_index)
     symm_ops = _get_default_symm_op()
     mi_unique = []
@@ -52,13 +51,16 @@ def _is_in_miller_family(
         symm_ops: list,
 ) -> bool:
     """
-        Function from the pymatgen package to check if the given Miller index belongs
-        to the same family of any index in the provided list.
+    Function from the pymatgen package (https://github.com/materialsproject/pymatgen)
+    to check if the given Miller index belongs to the same family of any index in the provided list.
 
-    Args:
-        miller_index (tuple[int, int, int]): The Miller index to analyze.
-        miller_list (list): List of Miller indices.
-        symm_ops (list): Symmetry operations for a lattice,
-            used to define the indices family.
+    Parameters
+    ----------
+    miller_index : Tuple[int, int, int]
+    miller_list : List
+        List of Miller indices to compare.
+    symm_ops : List
+        Symmetry operations for a lattice,
+        used to define the indices family.
     """
     return any(in_coord_list(miller_list, op.operate(miller_index)) for op in symm_ops)

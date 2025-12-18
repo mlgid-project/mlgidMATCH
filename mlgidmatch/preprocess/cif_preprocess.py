@@ -5,27 +5,28 @@ import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
-from pygidsim.giwaxs_sim import GIWAXSFromCif, GIWAXS
 from pygidsim.experiment import ExpParameters
-from pygidsim.q_sim import QPos
+from pygidsim.giwaxs_sim import GIWAXSFromCif, GIWAXS
 from pygidsim.int_sim import Intensity
 from pymatgen.core import Structure
 import pymatgen.core.surface as surface
 
 from mlgidmatch.preprocess.rotate import rotate_vect
 from mlgidmatch.preprocess.directions import get_unique_directions
-from mlgidmatch.preprocess.utils import unique, limit_q, limit_int, lorentz_correction_2d
+from mlgidmatch.preprocess.utils import limit_int
 
 from typing import List
 import warnings
 
 
 class Pattern3d(object):
+    """A class with all essential data for GID pattern simulation."""
+
     def __init__(self,
-                 q_3d: List[np.ndarray],  # each array with shape (points_num, 3)
+                 q_3d: List[np.ndarray],  # each array with shape (peaks_num, 3)
                  rec: np.ndarray,  # (str_num, 3, 3,)
-                 intensities: List[np.ndarray],  # each array with shape (str_num, points_num),
-                 lengths: List[int],  # (str_num)
+                 intensities: List[np.ndarray],  # each array with shape (peaks_num, ),
+                 lengths: List[int],  # list of peaks_num for each structure
                  orientations: List[np.ndarray],  # each array with shape (orient_num, 3),
                  ):
         self.q_3d = q_3d
@@ -37,42 +38,78 @@ class Pattern3d(object):
 
 class CifPattern(object):
     """
-        A class to parse CIFs and prepare them for evaluation.
-        ...
-        Attributes
-        ----------
-            folder_path : str
-                folder with cifs
-            cifs : List[str]
-                paths to cifs
-            params : ExpParameters
-            pattern_3d : Pattern3d
-                class with all essential data for GID pattern simulation
-            background : torch.Tensor, shape - (struct_num, 13, 100, 3)
-                peaks coordinates in 2D q-space for 13 basic orientations
-                (100 - peaks number, 3 - q_xy, q_z, intensity)
-            all_patterns_q : Union[List[List[np.ndarray]]], None], default=None
-                peak positions for given cifs and all possible orientations
-            all_patterns_int : Union[List[List[np.ndarray]]], None], default=None
-                intensities for given cifs and all possible orientations
+    A class to parse CIFs and prepare them for evaluation.
+
+    Attributes
+    ----------
+    params : ExpParameters
+        Experimental parameters.
+    folder_path : str
+        Folder with CIFs.
+    cifs : List[str], optional
+        CIF files names.
+    create_all : bool, optional
+        Whether to generate all patterns. Default is False.
+    preprocessed_3d : str, optional
+        Path to preprocessed class (with calculated 3d patterns).
+    pattern_3d : Pattern3d
+        Class with all essential data for GID pattern simulation.
+    elementary : torch.Tensor
+        Shape (struct_num, 13, 100, 3). Peaks coordinates in 2D q-space for 13 basic orientations
+        (100 peaks, 3 = q_xy, q_z, intensity).
+    all_patterns_q2d : List[List[np.ndarray]] or None
+        Peak positions in 2D for given cifs and all possible unique orientations.
+        len(self.all_patterns_q2d) == len(self.cifs).
+        len(self.all_patterns_q2d[i]) == number of unique orientations for self.cifs[i].
+    all_patterns_int2d : List[List[np.ndarray]] or None
+        Intensities in 2D for given cifs and all possible orientations.
+        len(self.all_patterns_int2d) == len(self.cifs).
+        len(self.all_patterns_int2d[i]) == number of unique orientations for self.cifs[i].
+    all_patterns_q1d : List[np.ndarray] or None
+        Peak positions in 1D for given cifs and all possible unique orientations.
+        len(self.all_patterns_q2d) == len(self.cifs).
+    all_patterns_int1d : List[List[np.ndarray]] or None
+        Intensities in 1D for given cifs.
+        len(self.all_patterns_int2d) == len(self.cifs).
     """
 
-    def __init__(self, params, folder_path, cifs=None, create_all=False):
+    def __init__(self,
+                 params: ExpParameters,
+                 folder_path: str,
+                 cifs: List[str] = None,
+                 create_elementary: bool = True,
+                 create_all: bool = False,
+                 preprocessed_3d: str = None,
+                 ):
         self.params = params
         self.folder_path = folder_path
         self.cifs = cifs
 
-        self.pattern_3d = self.calculate_patterns3d()
-        self.background = self.create_background()
+        if not preprocessed_3d:
+            self.cifs = cifs
+            self.pattern_3d = self._calculate_patterns3d()
+        else:
+            with open(preprocessed_3d, 'rb') as file:
+                data = pickle.load(file)
+                assert (np.sort(data.cifs) == np.sort(cifs)).all(), "cifs and preprocessed_3d do not match"
+                self.cifs = data.cifs
+                self.pattern_3d = data.pattern_3d
+
+        self.elementary = None
+        if create_elementary:
+            self.elementary = self._create_elementary()
+
         self.all_patterns_q2d = None
         self.all_patterns_int2d = None
         self.all_patterns_q1d = None
         self.all_patterns_int1d = None
         if create_all:
             self.all_patterns_q2d, self.all_patterns_int2d, self.all_patterns_q1d, self.all_patterns_int1d = \
-                self.create_all_possible_patterns()
+                self._create_all_possible_patterns()
 
-    def calculate_patterns3d(self):
+    def _calculate_patterns3d(self):
+        """Return the Pattern3d class with calculated patterns in 3D"""
+
         cif_list = []
         rec_list = []
         q_list = []
@@ -82,22 +119,22 @@ class CifPattern(object):
 
         if self.cifs is None:
             self.cifs = os.listdir(self.folder_path)
-        self.cifs = [os.path.join(self.folder_path, filename) for filename in self.cifs]
+        _cifs = [os.path.join(self.folder_path, filename) for filename in self.cifs]
 
-        print("Parse CIFs")
-        for idx, cif_path in enumerate(self.cifs):
+        print("parse CIFs")
+        for idx, cif_path in enumerate(_cifs):
             if os.path.isfile(cif_path) and cif_path.lower().endswith('.cif'):
                 cif_list.append(os.path.basename(cif_path))
                 el = GIWAXSFromCif(cif_path, self.params).giwaxs
                 intensity = Intensity(
-                    el.crystal.atoms,
-                    el.crystal.atom_positions,
-                    el.crystal.occ,
-                    el.q_3d,
-                    el.mi,
-                    el.exp.wavelength,
-                    el.exp.ai,
-                    el.exp.database,
+                    atoms=el.crystal.atoms,
+                    atom_positions=el.crystal.atom_positions,
+                    occ=el.crystal.occ,
+                    q_3d=el.q_3d,
+                    mi=el.mi,
+                    wavelength=el.exp.wavelength,
+                    ai=el.exp.ai,
+                    database=el.exp.database,
                 ).get_intensities()
                 rec_list.append(el.rec)
                 q_list.append(el.q_3d)
@@ -122,11 +159,12 @@ class CifPattern(object):
             orientations=orientations,
         )
         self.cifs = cif_list
-        print("Parsing finished\n")
+        print("parsing finished\n")
         return pattern_3d
 
-    def create_background(self, top_peaks=100):
-        """Create 13 ideal patterns with 'elementary' orientations from matching_rows"""
+    def _create_elementary(self, top_peaks=100):
+        """Create 13 ideal patterns with 'elementary' orientations from matching_rows."""
+
         matching_rows = np.array(
             [[1, 0, 0],
              [0, 1, 0],
@@ -144,44 +182,34 @@ class CifPattern(object):
              ],
         )
 
-        # q_range_max = np.sqrt(self.params.q_xy_max ** 2 + self.params.q_z_max ** 2)
-        background = torch.empty(
-            len(self.cifs), len(matching_rows), top_peaks, 3,
-        )  # 3 - q2d + intensity
-        print("Create background")
+        print("create 'elementary' patterns")
+        elementary = torch.empty(len(self.cifs), len(matching_rows), top_peaks, 3)  # qxy, qz, intensity
         for idx in range(len(self.cifs)):
             q_list = []
             int_list = []
             for row in matching_rows:
-                R, orientation = rotate_vect(self.pattern_3d.rec[idx], orientation=row)
+                R = rotate_vect(self.pattern_3d.rec[idx], orientation=row)
                 q_3d = self.pattern_3d.q_3d[idx] @ R
-                #
-                # q_2d, intensity, _ = GIWAXS.giwaxs_2d(
-                #     q_3d=q_3d,
-                #     intensity=self.pattern_3d.intensities[idx],
-                #     mi=None,
-                #     q_range=(self.params.q_xy_max, self.params.q_z_max),
-                #     wavelength=self.params.wavelength,
-                #     move_fromMW=False,
-                # )
 
-                q_xy = np.linalg.norm(q_3d[:, :2], axis=1)
-                q_z = q_3d[:, -1]
-                q_2d = np.concatenate((q_xy[:, np.newaxis], q_z[:, np.newaxis]), axis=1)
-                q_2d, intensity = limit_q(
-                    q_2d, self.pattern_3d.intensities[idx], (self.params.q_xy_max, self.params.q_z_max),
+                q_2d, intensity, _ = GIWAXS.giwaxs_2d(
+                    q_3d=q_3d,
+                    intensity=self.pattern_3d.intensities[idx],
+                    mi=None,
+                    q_range=(self.params.q_xy_max, self.params.q_z_max),
+                    wavelength=self.params.wavelength,
+                    move_fromMW=False,
                 )
-                # intensity_corr = lorentz_correction_2d(q_2d, intensity)
-                q_2d, intensity = unique(q_2d, intensity)
-                q_2d, intensity = limit_int(q_2d, intensity, top_peaks=top_peaks)
+                q_2d, intensity = limit_int(q_2d=q_2d.T, intensity=intensity, top_peaks=top_peaks)
 
-                q_2d = torch.tensor(q_2d, dtype=torch.float32, device='cpu')
+                q_2d = torch.tensor(q_2d, dtype=torch.float32, device='cpu')  # (top_peaks, 2)
                 q_list.append(q_2d)
                 int_list.append(torch.tensor(intensity))
 
-            q_2d_pad = pad_sequence(q_list, batch_first=True, padding_value=0.0)
-            intensity_pad = pad_sequence(int_list, batch_first=True, padding_value=0.0)
-            q_tensor = torch.concat((q_2d_pad, intensity_pad.unsqueeze(-1)), dim=-1)
+            q_2d_pad = pad_sequence(q_list, batch_first=True, padding_value=0.0)  # (13, top_peaks, 2)
+            intensity_pad = pad_sequence(int_list, batch_first=True, padding_value=0.0)  # (13, top_peaks)
+            q_tensor = torch.concat((q_2d_pad, intensity_pad.unsqueeze(-1)), dim=-1)  # (13, top_peaks, 3)
+
+            # add padding if the number of peaks is too low
             if q_tensor.shape[1] < top_peaks:
                 q_tensor = torch.cat(
                     (q_tensor,
@@ -192,22 +220,24 @@ class CifPattern(object):
                      )), dim=1,
                 )
 
-            background[idx] = q_tensor
-        print("Background created\n")
-        return background
+            elementary[idx] = q_tensor  # (13, top_peaks, 3)
+        print("'elementary' patterns created\n")
+        return elementary
 
-    def create_all_possible_patterns(self):
+    def _create_all_possible_patterns(self):
+        """Create all possible patterns (within the orientations range)."""
+
         full_q_2d = []
         full_intensity_2d = []
         full_q_1d = []
         full_intensity_1d = []
 
-        print("Create all possible patterns")
+        print("create all possible patterns")
         for idx, cif in enumerate(self.cifs):
             q_2d_list = []
             intensity_list = []
             for orientation in self.pattern_3d.orientations[idx]:
-                R, orientation = rotate_vect(self.pattern_3d.rec[idx], orientation)
+                R = rotate_vect(rec=self.pattern_3d.rec[idx], orientation=orientation)
                 q_3d = self.pattern_3d.q_3d[idx] @ R
 
                 q_2d, intensity, _ = GIWAXS.giwaxs_2d(
@@ -219,7 +249,7 @@ class CifPattern(object):
                     move_fromMW=True,
                 )
 
-                # remove peaks with very low intensities
+                # remove peaks with low intensities
                 max_peaks = 1000
                 intens_norm = (intensity / intensity.max())
                 sort_idx = np.where(intens_norm > 0.01)[0]
@@ -235,13 +265,13 @@ class CifPattern(object):
             q_1d, int_1d = self.create_powder3d_pattern(idx)
             full_q_1d.append(q_1d)
             full_intensity_1d.append(int_1d)
-        print("All patterns created\n")
+        print("all patterns created\n")
         return full_q_2d, full_intensity_2d, full_q_1d, full_intensity_1d
 
     def create_powder3d_pattern(self, idx):
         q_1d = np.linalg.norm(self.pattern_3d.q_3d[idx], axis=-1)
         q_1d, int_1d, _ = GIWAXS.giwaxs_1d(
-            q_1d,
+            q_1d=q_1d,
             intensity=self.pattern_3d.intensities[idx],
             mi=None,
             wavelength=self.params.wavelength,
@@ -250,20 +280,29 @@ class CifPattern(object):
 
 
 if __name__ == '__main__':
-    # folder_path = '/home/romodin/Romodos/Packages/mlgidMATCH/mlgidmatch/data/cifs/'
-    folder_path = '/data/romodin/gi_matching/forms_cifs/'
-    # all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif', '576_PEA2PbI4_n1.cif',
-    #             '579_PEA2MAPb2I7_n2.cif', '581_BA2FAPb2I7_n2.cif', 'Bn-Br_test.cif', 'hex_2H_S41.cif',
-    #             'hex_4H_S41.cif', 'hex_6H_S41.cif']
+    folder_path = '/data/romodin/gi_matching/dataset/experiment/cifs/'
+    # all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif',]
+    all_cifs = os.listdir(folder_path)[:10]
+    # with open('/data/romodin/gi_matching/dataset/synthetic/LC/cif_train_list_100k.pickle', 'rb') as file:
+    #     all_cifs = pickle.load(file)[50_000:]
 
     params = ExpParameters(q_xy_max=5, q_z_max=5, en=18_000)
     cif_prepr = CifPattern(
         params=params,
         folder_path=folder_path,
-        # cifs=all_cifs,
+        cifs=all_cifs,
+        create_elementary=True,
         create_all=True,
     )
+    # cif_preproc = CifPattern(
+    #     params=params,
+    #     folder_path=folder_path,
+    #     cifs=all_cifs,
+    #     create_all=False,
+    #     preprocessed_3d='/data/romodin/gi_matching/dataset/synthetic/actual/cif_prepr_train_100k_5A_last50k.pickle',
+    # )
 
-    with open('/data/romodin/gi_matching/prepr_cifs.pickle', 'wb') as file:
+    with open('/data/romodin/gi_matching/dataset/experiment/__check__.pickle', 'wb') as file:
         pickle.dump(cif_prepr, file)
+
     print('FINALLY:', len(cif_prepr.cifs), 'structures')

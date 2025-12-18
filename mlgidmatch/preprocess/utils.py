@@ -1,65 +1,30 @@
 import numpy as np
-from typing import Tuple, Union
-import torch
 from pygidsim.giwaxs_sim import GIWAXS
-
-
-def limit_q(q_2d: np.ndarray,
-            intensity: np.ndarray,
-            q_range: Tuple[float, float],
-            ):
-    """
-        Exclude peaks outside the q_range
-
-        Parameters
-        ----------
-            q_2d : np.ndarray, shape - (peaks_num, 2)
-                peak positions in 2D q-space — q_xy, q_z
-            intensity : np.ndarray, shape - (peaks_num,)
-            q_range : Tuple[float, float], (q_xy and q_z max)
-
-        Return
-        -------
-            limited_q :  np.ndarray, shape - (peaks_num, 2)
-                peak positions in 2d q-space — q_xy, q_z
-            limited_int :  np.ndarray, shape - (peaks_num,)
-                intensities after limitation
-    """
-
-    # excludes peaks outside the q_range
-    # elements where q_z >=0 and q_xy <= limit and q_z <= limit
-    q_2d[np.abs(q_2d) < 1e-4] = 0
-    mask = ((q_2d[:, 1] >= 0) &
-            (q_2d[:, 0] <= q_range[0]) &
-            (q_2d[:, 1] <= q_range[1]))  # - (peaks_num, )
-
-    limited_q = q_2d[mask]
-    limited_int = intensity[mask]
-
-    return limited_q, limited_int
+from typing import Tuple
 
 
 def limit_int(q_2d: np.ndarray,  # (peaks_num, 2)
               intensity: np.ndarray,  # (peaks_num,)
               top_peaks: int,
-              ):
+              ) -> Tuple[np.ndarray, np.ndarray]:
     """
-        Return peaks with top intensities
+    Return peaks with top intensities.
 
-        Parameters
-        ----------
-            q_2d : np.ndarray, shape (peaks_num, 2)
-                peak positions in 2d q-space — q_xy, q_z
-            intensity : np.ndarray, shape - (peaks_num,)
-            top_peaks : int
-                how many brightest peaks to take
+    Parameters
+    ----------
+    q_2d : np.ndarray
+        Shape (peaks_num, 2). Peak positions in 2D q-space (q_xy, q_z).
+    intensity : np.ndarray
+        Shape (peaks_num,). Intensities corresponding to q_2d peaks.
+    top_peaks : int
+        Number of brightest peaks to select.
 
-        Return
-        -------
-            limited_q :  np.ndarray, shape (peaks_num, 2)
-                peak positions in 2d q-space — q_xy, q_z
-            limited_int :  np.ndarray, shape - (peaks_num,)
-                intensities after limitation
+    Returns
+    -------
+    limited_q :  np.ndarray
+        Shape (peaks_num, 2). Peak positions in 2D q-space after limitation.
+    limited_int :  np.ndarray
+        Shape (peaks_num,). Intensities after limitation.
     """
     sort_arg = np.argsort(intensity)[::-1][:top_peaks]
     limited_q = q_2d[sort_arg]
@@ -70,21 +35,23 @@ def limit_int(q_2d: np.ndarray,  # (peaks_num, 2)
 
 def unique(q_2d: np.ndarray,
            intensity: np.ndarray,
-           ):
+           ) -> Tuple[np.ndarray, np.ndarray]:
     """
-        Return only unique peak positions
+    Return only unique peak positions.
 
-        Parameters
-        ----------
-            q_2d : np.ndarray, shape (peaks_num, 2)
-                peak positions in 2d q-space — q_xy, q_z
-            intensity : np.ndarray, shape (peaks_num,)
+    Parameters
+    ----------
+    q_2d : np.ndarray
+        Shape (peaks_num, 2). Peak positions in 2D q-space (q_xy, q_z).
+    intensity : np.ndarray
+        Shape (peaks_num,). Intensities corresponding to q_2d peaks.
 
-        Return
-        -------
-            q_2d_unique : np.ndarray, shape (peaks_num, 2)
-                peak positions in 2d q-space — q_xy, q_z
-            int_unique : np.ndarray, shape (peaks_num,)
+    Returns
+    -------
+    q_2d_unique : np.ndarray
+        Shape (peaks_num, 2). Unique peak positions in 2D q-space.
+    int_unique : np.ndarray
+        Shape (peaks_num,). Intensities corresponding to unique q_2d positions.
     """
     clusters = GIWAXS.cluster_mask(q_2d.T, r=2e-2)
     counts_per_cluster = np.bincount(clusters)
@@ -98,7 +65,7 @@ def unique(q_2d: np.ndarray,
     q_2d_unique[np.abs(q_2d_unique) < 1e-4] = 0
     assert q_2d_unique.shape[1] == len(
         int_unique
-        ), f"q_2d len: {q_2d_unique.shape[1]}, intensity len: {len(int_unique)}"
+    ), f"q_2d len: {q_2d_unique.shape[1]}, intensity len: {len(int_unique)}"
 
     return q_2d_unique.T, int_unique
 
@@ -107,6 +74,7 @@ def lorentz_correction_2d(q_2d: np.ndarray,  # (peaks_num, 2)
                           intensities: np.ndarray,  # (peaks_num,)
                           wavelength: float = 12_398 / 18_000,  # wavelength, Angstrom
                           ):
+    """Apply Lorentz correction to intensities."""
     k = 2 * np.pi / wavelength
 
     condition_inME = (k - abs(q_2d[:, 0])) ** 2 > (k ** 2 - q_2d[:, 1] ** 2)  # condition if peaks are in Missing Edge

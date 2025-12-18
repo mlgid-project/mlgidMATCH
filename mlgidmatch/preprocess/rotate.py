@@ -1,29 +1,26 @@
 import numpy as np
-from typing import Union, Tuple
-from mlgidmatch.preprocess.directions import get_unique_directions
 
 
-def rotate_vect(rec,
-                orientation: Union[str, np.ndarray] = np.array([0., 0., 1.], dtype=np.float32),
+def rotate_vect(rec: np.ndarray,
+                orientation: np.ndarray = np.array([0., 0., 1.], dtype=np.float32),
                 baz: np.ndarray = np.array([0., 0., 1.], dtype=np.float32),
-                ) -> Tuple[np.ndarray, np.ndarray]:
+                ) -> np.ndarray:
     """
-    Rotate crystal
+    Rotate crystal.
 
     Parameters
     ----------
-        rec : np.ndarray, shape (3, 3)
-            reciprocal vectors
-        orientation : Union[str, np.ndarray]
-            crystallographic orientation, e.g. 'random' or np.array([0., 1., 0.]), default=[001]
-        baz : np.ndarray, optional
-            basis vector for the default orientation, default=001
+    rec : np.ndarray
+        Shape (3, 3). Reciprocal vectors.
+    orientation : np.ndarray, optional
+        Crystallographic orientation. Default is np.array([0., 0., 1.]).
+    baz : np.ndarray, optional
+        Basis vector for the default orientation. Default is np.array([0., 0., 1.]).
 
-    Return
+    Returns
     -------
-        R : np.ndarray, shape (3, 3)
-            rotation matrix
-        orientation : np.ndarray, shape (3, )
+    R : np.ndarray
+        Shape (3, 3). Rotation matrix.
     """
     if isinstance(orientation, np.ndarray) and orientation.shape == (3,):
         orientation = orientation / np.linalg.norm(orientation, axis=0)
@@ -36,7 +33,7 @@ def rotate_vect(rec,
              [0., 1., 0.],
              [0., 0., 1.]],
         )
-        return R, orientation
+        return R
 
     orient = orientation @ rec
 
@@ -70,4 +67,4 @@ def rotate_vect(rec,
 
     R = np.stack((a_1, a_2, a_3), dtype=np.float32)
 
-    return R, orientation
+    return R

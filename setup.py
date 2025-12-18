@@ -15,6 +15,7 @@ if __name__ == '__main__':
         install_requires=[
             'numpy>=1.24.4',
             'pymatgen>=2025.6.14',
+            'pygidsim>=0.1.1',
             'xrayutilities>=1.7.6',
             'torch>=2.0.0',
             'torchvision>=0.15.0'],
