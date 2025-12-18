@@ -250,19 +250,20 @@ class CifPattern(object):
 
 
 if __name__ == '__main__':
-    folder_path = '/home/romodin/Romodos/Packages/mlgidMATCH/mlgidmatch/data/cifs/'
-    all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif', '576_PEA2PbI4_n1.cif',
-                '579_PEA2MAPb2I7_n2.cif', '581_BA2FAPb2I7_n2.cif', 'Bn-Br_test.cif', 'hex_2H_S41.cif',
-                'hex_4H_S41.cif', 'hex_6H_S41.cif']
+    # folder_path = '/home/romodin/Romodos/Packages/mlgidMATCH/mlgidmatch/data/cifs/'
+    folder_path = '/data/romodin/gi_matching/forms_cifs/'
+    # all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif', '576_PEA2PbI4_n1.cif',
+    #             '579_PEA2MAPb2I7_n2.cif', '581_BA2FAPb2I7_n2.cif', 'Bn-Br_test.cif', 'hex_2H_S41.cif',
+    #             'hex_4H_S41.cif', 'hex_6H_S41.cif']
 
     params = ExpParameters(q_xy_max=5, q_z_max=5, en=18_000)
-    cif_class = CifPattern(
+    cif_prepr = CifPattern(
         params=params,
         folder_path=folder_path,
-        cifs=all_cifs,
+        # cifs=all_cifs,
         create_all=True,
     )
 
-    with open('./prepr_cifs.pickle', 'wb') as file:
-        pickle.dump(cif_class, file)
-    print('FINALLY:', len(cif_class.cifs), 'structures')
+    with open('/data/romodin/gi_matching/prepr_cifs.pickle', 'wb') as file:
+        pickle.dump(cif_prepr, file)
+    print('FINALLY:', len(cif_prepr.cifs), 'structures')

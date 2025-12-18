@@ -86,13 +86,21 @@ def unique(q_2d: np.ndarray,
                 peak positions in 2d q-space — q_xy, q_z
             int_unique : np.ndarray, shape (peaks_num,)
     """
-    all_indices, indices_sum = GIWAXS.cluster_mask(q_2d.T, r=2e-2)
-    q_2d_unique = q_2d[all_indices]
-    int_unique = np.bincount(indices_sum, weights=intensity)
+    clusters = GIWAXS.cluster_mask(q_2d.T, r=2e-2)
+    counts_per_cluster = np.bincount(clusters)
+    sum_x = np.bincount(clusters, weights=q_2d[:, 0])
+    sum_y = np.bincount(clusters, weights=q_2d[:, 1])
+    q_2d_unique = np.vstack((sum_x, sum_y)) / counts_per_cluster  # shape (2, peaks_num)
+    int_unique = np.bincount(clusters, weights=intensity)
+    # all_indices, indices_sum = GIWAXS.cluster_mask(q_2d.T, r=2e-2)
+    # q_2d_unique = q_2d[all_indices]
+    # int_unique = np.bincount(indices_sum, weights=intensity)
     q_2d_unique[np.abs(q_2d_unique) < 1e-4] = 0
-    assert len(q_2d_unique) == len(int_unique), f"q_2d len: {len(q_2d_unique)}, intensity len: {len(int_unique)}"
+    assert q_2d_unique.shape[1] == len(
+        int_unique
+        ), f"q_2d len: {q_2d_unique.shape[1]}, intensity len: {len(int_unique)}"
 
-    return q_2d_unique, int_unique
+    return q_2d_unique.T, int_unique
 
 
 def lorentz_correction_2d(q_2d: np.ndarray,  # (peaks_num, 2)
