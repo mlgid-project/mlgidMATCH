@@ -7,7 +7,7 @@ PACKAGE_NAME = 'mlgidmatch'
 if __name__ == '__main__':
     setup(
         name=PACKAGE_NAME,
-        version='0.1.0dev1',
+        version='0.1.1',
         description='Performs peak-to-structure matching of GID patterns',
         long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),
         long_description_content_type="text/markdown",
