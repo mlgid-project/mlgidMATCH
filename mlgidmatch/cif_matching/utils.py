@@ -1,7 +1,6 @@
 from typing import List, Tuple, Any, Union
 from dataclasses import dataclass, field
 import torch
-import numpy as np
 
 from mlgidmatch.preprocess.cif_preprocess import CifPattern
 
@@ -41,7 +40,6 @@ def generate_images(
     Returns
     -------
     images : torch.Tensor
-        Probabilities for the candidate structures.
     """
 
     image_size = settings_dict.get('image_size', 224)

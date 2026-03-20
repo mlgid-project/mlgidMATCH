@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from pathlib import Path
 import glob
 
 PACKAGE_NAME = 'mlgidmatch'
@@ -8,6 +9,8 @@ if __name__ == '__main__':
         name=PACKAGE_NAME,
         version='0.1.0',
         description='Performs peak-to-structure matching of GID patterns',
+        long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),
+        long_description_content_type="text/markdown",
         author='Mikhail Romodin',
         url='https://github.com/mlgid-project/mlgidMATCH',
         packages=find_packages(),
@@ -15,7 +18,7 @@ if __name__ == '__main__':
         install_requires=[
             'numpy>=1.24.4',
             'pymatgen>=2025.6.14',
-            'pygidsim>=0.1.1',
+            'pygidsim==0.1.1',
             'xrayutilities>=1.7.6',
             'torch>=2.0.0',
             'torchvision>=0.15.0'],
@@ -38,5 +41,5 @@ if __name__ == '__main__':
                 'pytest-mock>=3.10.0',
             ]
         },
-        data_files=glob.glob('mlgidmatch/data/**')
+        # data_files=glob.glob('mlgidmatch/data/**')
     )

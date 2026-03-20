@@ -15,6 +15,12 @@ A full description of the matching algorithm process could be found in (`here wi
 
 ## Installation
 
+### Install from PyPi
+
+```bash
+pip install mlgidmatch
+```
+
 ### Install from source
 
 First, clone the repository:
@@ -30,28 +36,49 @@ cd pygidMATCH
 pip install -e .
 ```
 
-### Development Installation
+[//]: # (### Development Installation)
 
-For development and testing, install with development dependencies:
+[//]: # ()
 
-```bash
-pip install -e .[dev]
-```
+[//]: # (For development and testing, install with development dependencies:)
 
-## Testing
+[//]: # ()
 
-The project uses pytest for testing. To run the test suite:
+[//]: # (```bash)
 
-```bash
-# Run all tests
-pytest
+[//]: # (pip install -e .[dev])
 
-# Run tests with coverage report
-pytest --cov=mlgidmatch --cov-report=html
+[//]: # (```)
 
-# Run tests in parallel
-pytest -n auto
-```
+[//]: # ()
+
+[//]: # (## Testing)
+
+[//]: # ()
+
+[//]: # (The project uses pytest for testing. To run the test suite:)
+
+[//]: # ()
+
+[//]: # (```bash)
+
+[//]: # (# Run all tests)
+
+[//]: # (pytest)
+
+[//]: # ()
+
+[//]: # (# Run tests with coverage report)
+
+[//]: # (pytest --cov=mlgidmatch --cov-report=html)
+
+[//]: # ()
+
+[//]: # (# Run tests in parallel)
+
+[//]: # (pytest -n auto)
+
+[//]: # (```)
 
 ## Usage
 
@@ -78,16 +105,18 @@ The class also requires experimental parameters for correct preprocessing. These
 from mlgidmatch.preprocess.cif_preprocess import CifPattern
 from pygidsim.experiment import ExpParameters
 
+# path to the folder with CIF files
 folder_path = './cifs/'
 
+# list of CIF files to preprocess (if not provided, all CIFs from the folder will be used)
 all_cifs = ['struct1.cif', 'struct2.cif', ...]  # optional
 
-params = ExpParameters(q_xy_max=5, q_z_max=5, en=18_000)
+params = ExpParameters(q_xy_max=5, q_z_max=5, en=18_000)  # experimental parameters
 cif_prepr = CifPattern(
     params=params,
     folder_path=folder_path,
     cifs=all_cifs,  # optional
-    create_all=True,  # optional
+    create_all=True,  # optional, default: False
 )
 ```
 
@@ -100,12 +129,18 @@ with open('./mlgidmatch/data/prepr_cifs.pickle', 'wb') as file:
     pickle.dump(cif_prepr, file)
 ```
 
-### Neural Matching
-
-To receive probabilities for the candidate structures from the neural matching stage, use the following example:
+To load the preprocessed data later use the following code:
 
 ```python
-from mlgidmatch.preprocess.cif_preprocess import *
+with open('./mlgidmatch/data/prepr_cifs.pickle', 'rb') as file:
+    cif_prepr = pickle.load(file)
+```
+
+### Neural Matching
+
+To receive only probabilities for the candidate structures from the neural matching stage, use the following example:
+
+```python
 from mlgidmatch.matching import Match
 
 match_class = Match(
@@ -115,38 +150,37 @@ match_class = Match(
 )
 
 probabilities = match_class.match_cifs(
-    peak_list=q_2d,  # np.ndarray, shape (peaks_num, 2)
-    q_range_list=(q_xy_max, q_z_max),  # upper limits of q-range
-    candidate_ind=np.array(
-        [1, 7, 8, ...]
-    )  # indices of candidate structures (corresponding to cif_prepr.cifs)
+    peaks=q_2d,  # np.ndarray, shape (peaks_num, 2)
+    q_range=(q_xy_max, q_z_max),  # upper limits of q-range
+    candidates=[struct1.cif, struct5.cif],  # candidate structures for the measurement (optional)
+)
 ```
 
 ### Peak-to-structure matching
 
-To perform full matching, including phase identification and peak-to-structure assignment, use the following example:
+To perform full matching, including neural matching, phase identification and peak-to-structure assignment, use the
+following example:
 
 ```python
-from mlgidmatch.preprocess.cif_preprocess import *
 from mlgidmatch.matching import Match
 
 match_class = Match(
-    model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',  # optional
     cif_prepr=cif_prepr,
-    device='cuda',
+    model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',  # optional
+    device='cuda',  # optional
 )
 
 # names of the measurements
 measurements = ['meas1', 'meas2', ...]
 
-# Peak positions and intensities (own np.ndarray per measurement)
+# Peak positions and intensities (own ArrayLike per measurement)
 peak_list = [q_2d_1, q_2d_2, ...]
 intensities_real_list = [intens1, intens2, ...]
 
 # Upper limits of the q-range (q_xy, q_z)
 q_range_list = [(2.7, 2.7), (3.1, 2.5), ...]
 
-# type of peaks - 'segments' or 'rings'
+# type of the peaks - 'segments' or 'rings'
 peaks_type = 'segments'
 
 # Probability threshold (optional)
@@ -165,11 +199,17 @@ data_matched = match_class.match_all(
     peak_list=peak_list,
     intensities_real_list=intensities_real_list,
     q_range_list=q_range_list,
+    threshold=threshold,  # optional, default: 0.5
+    candidates_list=candidates_list,  # optional, Leave empty to use all structures from cif_prepr.cifs
     peaks_type=peaks_type,
-    threshold=threshold,
-    candidates_list=candidates_list,
 )
+
+# Make user-friendly output by removing duplicated solutions (e.g. [DIP + HATCH] and [HATCH + DIP]), 
+# description is below in the Output section.
+unique_solutions = match_class.unique_solutions(data_matched)
 ```
+
+To avoid the neural matching stage and perform only peak-to-structure assignment, use threshold = 0.
 
 ### Output
 
@@ -265,16 +305,45 @@ Finally, duplicated solutions (e.g. [DIP + HATCH] and [HATCH + DIP]) can be remo
 
 ```python
 unique_solutions = match_class.unique_solutions(data_matched)
+```
 
-# Example output
+An example of the final output where 'meas_1' contains two unique solutions (DIP + HATCH and DIP + ZnPc + HATCH) is
+shown below:'
+
+```python
 unique_solutions = {
-    'meas_1': [
-        [('0', 'DIP.cif', np.array([0, 0, 1])),
-         ('0', 'HATCH.cif', array([1, 0, 1]))],
-        [('0', 'DIP.cif', np.array([0, 0, 1])),
-         ('1', 'ZnPc.cif', np.array([1, 1, 1])),
-         ('0', 'HATCH.cif', np.array([1, 0, 1]))]
-    ],
-    'meas_2': [...]
+    'meas_1': {
+        0: [
+            {
+                'cif': 'DIP.cif',
+                'orientation': np.array([0, 0, 1]),
+                'matched_peaks': np.array([0.985, 0, 0, ..., 0.985, 0]),
+            },
+            {
+                'cif': 'HATCH.cif',
+                'orientation': np.array([1, 0, 1]),
+                'matched_peaks': np.array([0, 0.685, 0, ..., 0.685, 0]),
+            },
+        ],
+        1: [
+            {
+                'cif': 'DIP.cif',
+                'orientation': np.array([0, 0, 1]),
+                'matched_peaks': np.array([0.985, 0, 0, ..., 0.985, 0]),
+            },
+            {
+                'cif': 'ZnPc.cif',
+                'orientation': np.array([1, 1, 1]),
+                'matched_peaks': np.array([0.792, 0, 0.792, ..., 0.792, 0]),
+            },
+            {
+                'cif': 'HATCH.cif',
+                'orientation': np.array([1, 0, 1]),
+                'matched_peaks': np.array([0, 0, 0.582, ..., 0.582, 0.582]),
+            }
+        ],
+    },
+
+    'meas_2': {[...]}
 }
 ```

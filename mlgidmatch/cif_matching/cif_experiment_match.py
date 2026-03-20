@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from typing import List, Tuple, Union
+from typing import Tuple
 
 from mlgidmatch.cif_matching.utils import generate_images
 from mlgidmatch.cif_matching.utils import ExpConfig
@@ -68,16 +68,16 @@ class Match_CIF():
                 q_range=q_range.unsqueeze(0),
                 intensities=None,
                 settings_dict=self.config.settings_dict,
-            ).unsqueeze(1)  # torch.Size([1, 1, 128, 128])
+            ).unsqueeze(1)  # (1, 1, 128, 128)
             input_batch = torch.concatenate(
                 (images.repeat(len(elementary_img), 1, 1, 1),
                  elementary_img), dim=1,
-            )  # torch.Size([cifs_num, 14, 128, 128])
+            )  # (cifs_num, 14, 128, 128)
 
             self.config.model.eval()
             with torch.no_grad():
-                outputs = self.config.model(input_batch).squeeze(1)  # torch.Size([cifs_num])
-            probabilities = torch.sigmoid(outputs).cpu()  # torch.Size([cifs_num])
+                outputs = self.config.model(input_batch).squeeze(1)  # (cifs_num,)
+            probabilities = torch.sigmoid(outputs).cpu()  # (cifs_num,)
             probabilities_full[batch:batch + batch_size] = probabilities.numpy()
 
         return probabilities_full

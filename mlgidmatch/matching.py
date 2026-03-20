@@ -1,11 +1,11 @@
 import torch
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Literal
 import numpy as np
+from numpy.typing import ArrayLike
 from pathlib import Path
 
 from mlgidmatch.preprocess.cif_preprocess import CifPattern
 from mlgidmatch.cif_matching.models.ResNet import IMGClassifier
-from mlgidmatch.cif_matching.models.RegNet import IMGClassifier_RegNet
 
 from mlgidmatch.cif_matching.utils import ExpConfig
 from mlgidmatch.cif_matching.cif_experiment_match import Match_CIF
@@ -23,25 +23,24 @@ class Match:
     model_type : str, optional
         Name of the model. Default is 'ResNet18'.
     model_path : path, optional
-        Path to the trained model.
+        Path to the model weights.
     device : str or torch.device
     """
 
     def __init__(self,
                  cif_prepr: CifPattern,
+                 *,
                  model_type: str = 'ResNet18',
                  model_path: Union[str, None] = None,
                  device='cuda'):
         if model_path is None:
-            model_path = Path(__file__).parent / 'cif_matching' / 'models' / 'ResNet18_newimage_14ch_state99999.pt'
+            model_path = Path(__file__).parent / 'cif_matching' / 'models' / 'ResNet18_best_model.pt'
         if model_type == 'ResNet18':
             model = IMGClassifier(input_dim=14, output_dim=1, res=18).eval()
         elif model_type == 'ResNet34':
             model = IMGClassifier(input_dim=14, output_dim=1, res=34).eval()
         elif model_type == 'ResNet50':
             model = IMGClassifier(input_dim=14, output_dim=1, res=50).eval()
-        elif model_type == 'RegNetsmall':
-            model = IMGClassifier_RegNet(input_dim=14, output_dim=1, mode='small').eval()
         else:
             raise ValueError(f'Unknown model type: {model_type}')
         model.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True))
@@ -59,12 +58,13 @@ class Match:
 
     def match_all(self,
                   measurements: List[str],
-                  peak_list: List[np.ndarray],
-                  intensities_real_list: List[np.ndarray],
+                  peak_list: List[ArrayLike],
+                  intensities_real_list: List[ArrayLike],
                   q_range_list: List[Tuple[float, float]],
+                  peaks_type: Literal['segments', 'rings'] = 'segments',
+                  *,
                   threshold: float = 0.5,
                   candidates_list: Union[List[List[str]], None] = None,
-                  peaks_type: str = None,  # 'segments' or 'rings'
                   save_metrics: bool = False,
                   ):
         """
@@ -74,24 +74,25 @@ class Match:
         ----------
         measurements : List[str]
             List of names of the measurements.
-        peak_list : List[np.ndarray]
-            Length should equal len(measurements).
-            List of experimental peak positions (one np.ndarray for each measurement).
-        intensities_real_list : List[np.ndarray]
-            Length should equal len(measurements).
-            List of experimental intensities corresponding to peak_list (one np.ndarray for each measurement).
+        peak_list : List[ArrayLike]
+            List of experimental peak positions (one ArrayLike for each measurement).
+            Length should be equal len(measurements).
+        intensities_real_list : List[ArrayLike]
+            List of experimental intensities corresponding to peak_list (one ArrayLike for each measurement).
+            Length should be equal len(measurements).
         q_range_list : List[Tuple[float, float]]
-            Length should equal len(measurements).
             List of upper limits of q-range (for q_xy, q_z).
-        threshold : float
-            Probability threshold to continue the matching process for the candidates.
-        candidates_list : List[List[str]] or None
-            Length should equal len(measurements).
+            Length should be equal len(measurements).
+        peaks_type : Literal['segments', 'rings'], optional
+            Type of the peaks. Default is 'segments'.
+        threshold : float, optional
+            Probability threshold to continue the matching process for the candidates. Default is 0.5.
+        candidates_list : List[List[str]], optional
             List of lists of candidate structures (one list for each measurement).
-        peaks_type : str
-            Type of the peaks ('segments' or 'rings').
+            Length should equal len(measurements). If None, the whole dataset from self.config.cif_prepr will be used.
+            Default is None.
         save_metrics : bool, optional
-            True if you want to save all matching metrics for further analysis.
+            True if you want to save all matching metrics for further analysis. Default is False.
         """
         self.peaks_type = peaks_type
         if self.peaks_type is None:
@@ -100,22 +101,20 @@ class Match:
         assert len(measurements) == len(peak_list) == len(intensities_real_list) == len(q_range_list), \
             (f"lengths are not equal: {len(measurements)}, {len(peak_list)}, {len(intensities_real_list)},"
              f" {len(q_range_list)}")
-        if candidates_list is not None:
+        if candidates_list:
             assert len(measurements) == len(candidates_list), \
                 f"lengths are not equal: {len(measurements)}, {len(candidates_list)}"
 
         full_data = {key: {} for key in measurements}
         for idx, meas in enumerate(measurements):
-            peaks = peak_list[idx]
-            intens_real = intensities_real_list[idx]
+            peaks = np.asarray(peak_list[idx], dtype=np.float32)
+            intens_real = np.asarray(intensities_real_list[idx], dtype=np.float32)
             q_range = q_range_list[idx]
             full_data[meas]['peaks'] = peaks
-            if candidates_list is None:
-                # if the list is not provided - use the whole dataset from self.config.cif_prepr
-                candidate_indices = np.arange(len(self.config.cif_prepr.cifs))
-            else:
-                candidate_indices = \
-                    np.nonzero(np.isin(self.config.cif_prepr.cifs, candidates_list[idx]))[0]
+
+            candidates = None
+            if candidates_list:
+                candidates = candidates_list[idx]
 
             full_data[meas].update(
                 self._build_tree(
@@ -123,7 +122,7 @@ class Match:
                     intens_real_all=intens_real,
                     q_range=q_range,
                     peaks_indices=np.arange(len(peaks)),
-                    candidate_ind=candidate_indices,
+                    candidates=candidates,
                     threshold=threshold,
                     save_metrics=save_metrics,
                     depth=0,
@@ -131,7 +130,7 @@ class Match:
             )
         return full_data
 
-    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidate_ind, threshold, save_metrics,
+    def _build_tree(self, peaks_all, intens_real_all, q_range, peaks_indices, candidates, threshold, save_metrics,
                     depth):
         """Build the dictionary with all solutions."""
 
@@ -142,14 +141,17 @@ class Match:
             # if too low number of peaks left for the matching
             return {}
 
-        probs = self.match_cifs(
-            peaks=peaks_all[peaks_indices],
-            q_range=q_range,
-            candidate_ind=candidate_ind,
-        )
-        if sum(probs >= threshold) == 0:
-            # if all probabilities are too low
-            return {}
+        if threshold > 0:
+            probs = self.match_cifs(
+                peaks=peaks_all[peaks_indices],
+                q_range=q_range,
+                candidates=candidates,
+            )
+            if sum(probs >= threshold) == 0:
+                # if all probabilities are too low
+                return {}
+        else:
+            probs = np.ones(len(self.config.cif_prepr.cifs))
 
         if self.peaks_type == 'rings':
             peaks_input = np.linalg.norm(peaks_all, axis=-1)
@@ -163,7 +165,7 @@ class Match:
             probs=probs,
             q_range=q_range,
             peaks_indices=peaks_indices,
-            candidate_ind=candidate_ind,
+            candidates=candidates,
             threshold=threshold,
             save_metrics=save_metrics,
         )
@@ -173,26 +175,26 @@ class Match:
         for key, branch in data_matched.items():
             if len(branch['indices_real_matched']) == 0:
                 continue
-            # mask = np.ones(len(peaks_indices), dtype=bool)
-            # mask[branch['_indices_real_matched']] = False
-            # new_peaks_indices = peaks_indices[mask]
 
             mask = np.zeros(len(peaks_all), dtype=bool)
             mask[peaks_indices] = True
             mask[branch['indices_real_matched']] = False
             new_peaks_indices = np.arange(len(peaks_all))[mask]
-            # if not (new_peaks_indices_check == new_peaks_indices).all():
-            #     raise Exception
             branch.update(
                 self._build_tree(
-                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidate_ind, threshold, save_metrics,
+                    peaks_all, intens_real_all, q_range, new_peaks_indices, candidates, threshold, save_metrics,
                     depth=depth + 1,
                 ),
             )
         return data_matched
 
-    def match_cifs(self, peaks, q_range, candidate_ind):
+    def match_cifs(self, peaks, q_range, candidates=None):
         """Make Neural Matching for CIFs."""
+        # if the list is not provided - use the whole dataset from self.config.cif_prepr
+        candidate_ind = np.arange(len(self.config.cif_prepr.cifs))
+        if candidates:
+            candidate_ind = np.nonzero(np.isin(self.config.cif_prepr.cifs, candidates))[0]
+
         return self.cif_class.match(
             peak_list=peaks,
             q_range=q_range,
@@ -201,9 +203,14 @@ class Match:
             device=self.device,
         )
 
-    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidate_ind, threshold,
-                    save_metrics, ):
+    def match_peaks(self, peaks_all, intens_real_all, probs, q_range, peaks_indices, candidates=None, threshold=0.5,
+                    save_metrics=False):
         """Make peak-to-structure matching for candidate structures."""
+        # if the list is not provided - use the whole dataset from self.config.cif_prepr
+        candidate_ind = np.arange(len(self.config.cif_prepr.cifs))
+        if candidates:
+            candidate_ind = np.nonzero(np.isin(self.config.cif_prepr.cifs, candidates))[0]
+
         return self.orient_class.match(
             q_real_all=peaks_all,
             intens_real_all=intens_real_all,
@@ -219,100 +226,72 @@ class Match:
         """Find unique solutions in the list of solutions."""
         all_solutions = {meas: [] for meas in data_matched.keys()}
         for meas in data_matched.keys():
+            peaks_num = len(data_matched[meas]['peaks'])
             seen = set()
-            unique = []
-            for sol in self._collect_solutions(data_matched[meas]):
+            unique = {}
+            cur_idx = 0
+            for idx, sol in enumerate(
+                    self._collect_solutions(
+                        tree=data_matched[meas],
+                        peaks_num=peaks_num,
+                        prev_names=None,
+                        path=None,
+                    )
+            ):
                 h = self._make_hashable(sol)
                 if h not in seen:
                     seen.add(h)
-                    unique.append(sol)
+                    unique[cur_idx] = sol
+                    cur_idx += 1
             all_solutions[meas] = unique
         return all_solutions
 
     def _make_hashable(self, solution):
-        return frozenset((cif, tuple(orient)) for _, cif, orient in solution)
+        return frozenset(el['_unique_name'] for el in solution)
 
-    def _collect_solutions(self, tree, depth=0):
+    def _collect_solutions(self, tree, peaks_num, prev_names=None, path=None):
+        if prev_names is None:
+            prev_names = set()
+            path = []
+
         solutions = []
+
         for key in tree.keys():
             if not key.isdigit():
                 continue
-            branch = tree[key]
 
-            current = [(key, branch["cif"], branch["orient"])]
-            sub_solutions = self._collect_solutions(branch, depth + 1)
-            if sub_solutions:
-                for sub in sub_solutions:
-                    solutions.append(current + sub)
+            branch = tree[key]
+            cur_name = frozenset((branch['cif'], tuple(branch['orient'])))
+
+            if cur_name in prev_names:
+                for item in path:
+                    if item['_unique_name'] == cur_name:
+                        item['matched_peaks'][branch['indices_real_matched']] = branch['probability']
+                        break
+                new_path = path
+                new_prev = prev_names
             else:
-                solutions.append(current)
+                probabilities = np.zeros(peaks_num)
+                probabilities[branch['indices_real_matched_all']] = branch['probability']
+                current = {'_unique_name': cur_name,
+                           'cif': branch['cif'],
+                           'orientation': tuple(branch["orient"]),
+                           'matched_peaks': probabilities,
+                           }
+
+                new_path = path + [current]
+                new_prev = prev_names | {cur_name}
+
+            sub_solutions = self._collect_solutions(
+                tree=branch,
+                peaks_num=peaks_num,
+                prev_names=new_prev,
+                path=new_path,
+            )
+
+            if sub_solutions:
+                solutions.extend(sub_solutions)
+            else:
+                solutions.append(new_path)
 
         return solutions
-
-
-if __name__ == "__main__":
-    import pickle
-    from mlgidmatch.preprocess.cif_preprocess import *
-
-    with open(
-            './data/prepr_cifs.pickle',
-            'rb',
-    ) as file:
-        cif_prepr = pickle.load(file)
-    match_class = Match(
-        # model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',
-        cif_prepr=cif_prepr,
-        peaks_type='segments',
-        device='cuda',
-    )
-
-    from pygidsim.experiment import ExpParameters
-    from pygidsim.giwaxs_sim import GIWAXSFromCif
-
-    params = ExpParameters(q_xy_max=2.7, q_z_max=2.7, en=18000)
-
-    path_to_cif_1 = '/data/romodin/gi_matching/dataset/experiment/perovskites/cifs/1_BA2PbI4_n1.cif'
-    el_1 = GIWAXSFromCif(path_to_cif_1, params)
-    q_2d_1, intensity_1 = el_1.giwaxs.giwaxs_sim(
-        orientation=np.array([5., 1., 2.]),
-        move_fromMW=True,
-    )  # q_2d is array with shape (2, peaks number)
-    idx = np.argsort(intensity_1)[-15:]
-    q_2d_real = q_2d_1[:, idx]
-    intensity_real = intensity_1[idx]
-
-    path_to_cif_2 = '/data/romodin/gi_matching/dataset/experiment/perovskites/cifs/581_BA2FAPb2I7_n2.cif'
-    el_2 = GIWAXSFromCif(path_to_cif_2, params)
-    q_2d_2, intensity_2 = el_2.giwaxs.giwaxs_sim(
-        orientation=np.array([1., 1., 2.]),
-        move_fromMW=True,
-    )  # q_2d is array with shape (2, peaks number)
-    idx = np.argsort(intensity_2)[-15:]
-    q_2d_real = np.concatenate((q_2d_real, q_2d_2[:, idx]), axis=1)
-    intensity_real = np.concatenate((intensity_real, intensity_2[idx]), axis=0)
-
-    data_matched = match_class.match_all(
-        measurements=['Own_Meas'],
-        peak_list=[q_2d_real.T],
-        intensities_real_list=[intensity_real],
-        q_range_list=[(2.7, 2.7)],
-        candidates_list=None, )
-    print(match_class.unique_solutions(data_matched))
-    for key_0 in data_matched['Own_Meas'].keys():
-        if not key_0.isdigit():
-            continue
-        print(data_matched['Own_Meas'][key_0]['cif'] + ' ' + str(data_matched['Own_Meas'][key_0]['orient']))
-        for key_1 in data_matched['Own_Meas'][key_0].keys():
-            if not key_1.isdigit():
-                continue
-            print(
-                '   ', data_matched['Own_Meas'][key_0][key_1]['cif'],
-                data_matched['Own_Meas'][key_0][key_1]['orient'],
-            )
-            for key_2 in data_matched['Own_Meas'][key_0][key_1].keys():
-                if not key_2.isdigit():
-                    continue
-                print(
-                    '   ', data_matched['Own_Meas'][key_0][key_1][key_2]['cif'],
-                    data_matched['Own_Meas'][key_0][key_1][key_2]['orient'],
-                )

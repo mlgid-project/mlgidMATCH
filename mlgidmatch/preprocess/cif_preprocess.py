@@ -1,3 +1,4 @@
+import sys
 import os
 import pickle
 
@@ -17,6 +18,16 @@ from mlgidmatch.preprocess.utils import limit_int
 
 from typing import List
 import warnings
+
+
+class SuppressPrint:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
 
 
 class Pattern3d(object):
@@ -121,11 +132,14 @@ class CifPattern(object):
             self.cifs = os.listdir(self.folder_path)
         _cifs = [os.path.join(self.folder_path, filename) for filename in self.cifs]
 
-        print("parse CIFs")
         for idx, cif_path in enumerate(_cifs):
             if os.path.isfile(cif_path) and cif_path.lower().endswith('.cif'):
-                cif_list.append(os.path.basename(cif_path))
-                el = GIWAXSFromCif(cif_path, self.params).giwaxs
+                with SuppressPrint():
+                    try:
+                        el = GIWAXSFromCif(cif_path, self.params).giwaxs
+                    except:
+                        warnings.warn(f"could not parse {cif_path}")
+                        continue
                 intensity = Intensity(
                     atoms=el.crystal.atoms,
                     atom_positions=el.crystal.atom_positions,
@@ -136,6 +150,7 @@ class CifPattern(object):
                     ai=el.exp.ai,
                     database=el.exp.database,
                 ).get_intensities()
+                cif_list.append(os.path.basename(cif_path))
                 rec_list.append(el.rec)
                 q_list.append(el.q_3d)
                 intensities_list.append(intensity)
@@ -159,7 +174,7 @@ class CifPattern(object):
             orientations=orientations,
         )
         self.cifs = cif_list
-        print("parsing finished\n")
+        # print("parsing finished\n")
         return pattern_3d
 
     def _create_elementary(self, top_peaks=100):
@@ -182,7 +197,6 @@ class CifPattern(object):
              ],
         )
 
-        print("create 'elementary' patterns")
         elementary = torch.empty(len(self.cifs), len(matching_rows), top_peaks, 3)  # qxy, qz, intensity
         for idx in range(len(self.cifs)):
             q_list = []
@@ -221,7 +235,6 @@ class CifPattern(object):
                 )
 
             elementary[idx] = q_tensor  # (13, top_peaks, 3)
-        print("'elementary' patterns created\n")
         return elementary
 
     def _create_all_possible_patterns(self):
@@ -232,7 +245,6 @@ class CifPattern(object):
         full_q_1d = []
         full_intensity_1d = []
 
-        print("create all possible patterns")
         for idx, cif in enumerate(self.cifs):
             q_2d_list = []
             intensity_list = []
@@ -265,7 +277,6 @@ class CifPattern(object):
             q_1d, int_1d = self.create_powder3d_pattern(idx)
             full_q_1d.append(q_1d)
             full_intensity_1d.append(int_1d)
-        print("all patterns created\n")
         return full_q_2d, full_intensity_2d, full_q_1d, full_intensity_1d
 
     def create_powder3d_pattern(self, idx):
@@ -277,32 +288,3 @@ class CifPattern(object):
             wavelength=self.params.wavelength,
         )
         return q_1d, int_1d
-
-
-if __name__ == '__main__':
-    folder_path = '/data/romodin/gi_matching/dataset/experiment/cifs/'
-    # all_cifs = ['1_BA2PbI4_n1.cif', '5_BA2MAPb2I7_n2.cif', '6_BA2MA2Pb3I10_n3.cif',]
-    all_cifs = os.listdir(folder_path)[:10]
-    # with open('/data/romodin/gi_matching/dataset/synthetic/LC/cif_train_list_100k.pickle', 'rb') as file:
-    #     all_cifs = pickle.load(file)[50_000:]
-
-    params = ExpParameters(q_xy_max=5, q_z_max=5, en=18_000)
-    cif_prepr = CifPattern(
-        params=params,
-        folder_path=folder_path,
-        cifs=all_cifs,
-        create_elementary=True,
-        create_all=True,
-    )
-    # cif_preproc = CifPattern(
-    #     params=params,
-    #     folder_path=folder_path,
-    #     cifs=all_cifs,
-    #     create_all=False,
-    #     preprocessed_3d='/data/romodin/gi_matching/dataset/synthetic/actual/cif_prepr_train_100k_5A_last50k.pickle',
-    # )
-
-    with open('/data/romodin/gi_matching/dataset/experiment/__check__.pickle', 'wb') as file:
-        pickle.dump(cif_prepr, file)
-
-    print('FINALLY:', len(cif_prepr.cifs), 'structures')
