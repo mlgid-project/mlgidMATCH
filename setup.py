@@ -7,13 +7,17 @@ PACKAGE_NAME = 'mlgidmatch'
 if __name__ == '__main__':
     setup(
         name=PACKAGE_NAME,
-        version='0.1.0',
+        version='0.1.0dev1',
         description='Performs peak-to-structure matching of GID patterns',
         long_description=(Path(__file__).parent / "README.md").read_text(encoding="utf-8"),
         long_description_content_type="text/markdown",
         author='Mikhail Romodin',
         url='https://github.com/mlgid-project/mlgidMATCH',
         packages=find_packages(),
+        include_package_data=True,
+        package_data={
+            PACKAGE_NAME: ["ResNet18_best_model.pt"],
+        },
         python_requires='>=3.8',
         install_requires=[
             'numpy>=1.24.4',

@@ -3,7 +3,7 @@
 _mlgidMATCH_ performs peak-to-structure matching of GID patterns.
 
 <p align="center">
-  <img src="docs/images/mlgid_logo_mlgidmatch.png" width="400" alt="GIDFIT">
+  <img src="https://raw.githubusercontent.com/mlgid-project/mlgidMATCH/main/docs/images/mlgid_logo_mlgidmatch.png" width="400" alt="mlgidMATCH">
 </p>
 
 The package performs crystal phase identification from (generally, multi-phase) GID patterns based on Bragg peak
