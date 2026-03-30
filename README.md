@@ -212,8 +212,6 @@ data_matched = match_class.match_all(
 unique_solutions = match_class.unique_solutions(data_matched)
 ```
 
-To avoid the neural matching stage and perform only peak-to-structure assignment, use threshold = 0.
-
 ### Output
 
 After the matching process, `data_matched` is a dictionary with the following hierarchical structure:
