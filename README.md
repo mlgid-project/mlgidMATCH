@@ -102,8 +102,11 @@ The class also requires experimental parameters for correct preprocessing. These
 `experiment.ExpParameters` class from the `pygidsim` package, which is available on PyPi.
 
 ```python
+import warnings
 from mlgidmatch.preprocess.cif_preprocess import CifPattern
 from pygidsim.experiment import ExpParameters
+
+warnings.filterwarnings("ignore")
 
 # path to the folder with CIF files
 folder_path = './cifs/'
