@@ -144,7 +144,7 @@ To receive only probabilities for the candidate structures from the neural match
 from mlgidmatch.matching import Match
 
 match_class = Match(
-    model_path='./cif_matching/models/ResNet18_newimage_14ch_state99999.pt',
+    model_path='./cif_matching/models/ResNet18_best_model.pt',
     cif_prepr=cif_prepr,
     device='cuda',
 )
