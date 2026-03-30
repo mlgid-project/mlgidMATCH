@@ -141,17 +141,14 @@ class Match:
             # if too low number of peaks left for the matching
             return {}
 
-        if threshold > 0:
-            probs = self.match_cifs(
-                peaks=peaks_all[peaks_indices],
-                q_range=q_range,
-                candidates=candidates,
-            )
-            if sum(probs >= threshold) == 0:
-                # if all probabilities are too low
-                return {}
-        else:
-            probs = np.ones(len(self.config.cif_prepr.cifs))
+        probs = self.match_cifs(
+            peaks=peaks_all[peaks_indices],
+            q_range=q_range,
+            candidates=candidates,
+        )
+        if sum(probs >= threshold) == 0:
+            # if all probabilities are too low
+            return {}
 
         if self.peaks_type == 'rings':
             peaks_input = np.linalg.norm(peaks_all, axis=-1)
