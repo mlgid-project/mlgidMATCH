@@ -17,7 +17,7 @@ from mlgidmatch.preprocess.directions import get_unique_directions
 from mlgidmatch.preprocess.utils import limit_int
 
 from typing import List
-import warnings
+import logging
 
 
 class SuppressPrint:
@@ -120,6 +120,7 @@ class CifPattern(object):
 
     def _calculate_patterns3d(self):
         """Return the Pattern3d class with calculated patterns in 3D"""
+        logger = logging.getLogger(__name__)
 
         cif_list = []
         rec_list = []
@@ -138,7 +139,7 @@ class CifPattern(object):
                     try:
                         el = GIWAXSFromCif(cif_path, self.params).giwaxs
                     except:
-                        warnings.warn(f"could not parse {cif_path}")
+                        logger.warning("could not parse %s", cif_path)
                         continue
                 intensity = Intensity(
                     atoms=el.crystal.atoms,
@@ -163,7 +164,7 @@ class CifPattern(object):
                     unique_orientations = get_unique_directions(max_index=5)
                 orientations.append(np.array(unique_orientations, dtype=np.float32))
             else:
-                warnings.warn(f"not CIF {cif_path}")
+                logger.warning("not CIF %s", cif_path)
         rec_list = np.stack(rec_list, axis=2, dtype=np.float32)  # (3, 3, str_num)
         rec_list = np.transpose(rec_list, (2, 0, 1))  # (str_num, 3, 3)
         pattern_3d = Pattern3d(
