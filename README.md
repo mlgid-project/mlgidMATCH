@@ -32,7 +32,7 @@ git clone https://github.com/mlgid-project/mlgidMATCH.git
 Then, to install all required modules, navigate to the cloned directory and execute:
 
 ```bash
-cd pygidMATCH
+cd mlgidMATCH
 pip install -e .
 ```
 
@@ -155,7 +155,7 @@ match_class = Match(
 probabilities = match_class.match_cifs(
     peaks=q_2d,  # np.ndarray, shape (peaks_num, 2)
     q_range=(q_xy_max, q_z_max),  # upper limits of q-range
-    candidates=[struct1.cif, struct5.cif],  # candidate structures for the measurement (optional)
+    candidates=['struct1.cif', 'struct5.cif'],  # candidate structures for the measurement (optional)
 )
 ```
 
@@ -191,8 +191,8 @@ threshold = 0.5
 
 # Candidate structures for each measurement (optional)
 candidates_list = [
-    [struct1.cif, struct5.cif],
-    [struct2.cif, struct3.cif, struct7.cif],
+    ['struct1.cif', 'struct5.cif'],
+    ['struct2.cif', 'struct3.cif', 'struct7.cif'],
     ...
 ],  # Leave empty to use all structures from cif_prepr.cifs
 
@@ -309,7 +309,7 @@ unique_solutions = match_class.unique_solutions(data_matched)
 ```
 
 An example of the final output where 'meas_1' contains two unique solutions (DIP + HATCH and DIP + ZnPc + HATCH) is
-shown below:'
+shown below:
 
 ```python
 unique_solutions = {

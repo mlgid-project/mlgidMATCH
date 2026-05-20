@@ -210,7 +210,8 @@ class CifPattern(object):
                     q_3d=q_3d,
                     intensity=self.pattern_3d.intensities[idx],
                     mi=None,
-                    q_range=(self.params.q_xy_max, self.params.q_z_max),
+                    q_xy_range=self.params.q_xy_range,
+                    q_z_range=self.params.q_z_range,
                     wavelength=self.params.wavelength,
                     move_fromMW=False,
                 )
@@ -257,7 +258,8 @@ class CifPattern(object):
                     q_3d=q_3d,
                     intensity=self.pattern_3d.intensities[idx],
                     mi=None,
-                    q_range=(self.params.q_xy_max, self.params.q_z_max),
+                    q_xy_range=self.params.q_xy_range,
+                    q_z_range=self.params.q_z_range,
                     wavelength=self.params.wavelength,
                     move_fromMW=True,
                 )
